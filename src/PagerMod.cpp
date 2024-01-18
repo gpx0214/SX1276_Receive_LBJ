@@ -30,6 +30,54 @@ bool fixBCH(uint32_t &cw, CBCH3121 &bch, uint16_t &err) {
     // Serial.printf("[D] Correction Failed. err %d\n", err);
     return false;
 }
+uint32_t reflect(uint32_t in, uint8_t bits) {
+    uint32_t res = 0;
+    for (uint8_t i = 0; i < bits; i++) {
+        res |= (((in & ((uint32_t) 1 << i)) >> i) << (bits - i - 1));
+    }
+    return (res);
+}
+
+void decode20(uint32_t cw, char *char_array) {
+    uint32_t data = (cw << 1) >> 12;
+    uint8_t hex_array[5];
+    hex_array[4] = data & 0x0000000f;
+    hex_array[3] = (data & 0x000000f0) >> 4;
+    hex_array[2] = (data & 0x00000f00) >> 8;
+    hex_array[1] = (data & 0x0000f000) >> 12;
+    hex_array[0] = (data & 0x000f0000) >> 16;
+
+    // char char_array[5];
+    for (uint8_t i = 0; i < 5; i++) {
+        // reflect bits
+        hex_array[i] = reflect(hex_array[i],4);
+
+        switch (hex_array[i]) {
+            case 0x0A:
+                char_array[i] = '*';
+                break;
+            case 0x0B:
+                char_array[i] = 'U';
+                break;
+            case 0x0C:
+                char_array[i] = ' ';
+                break;
+            case 0X0D:
+                char_array[i] = '-';
+                break;
+            case 0x0E:
+                char_array[i] = ')';
+                break;
+            case 0x0F:
+                char_array[i] = '(';
+                break;
+            default:
+                char_array[i] = (char) (hex_array[i] + '0');
+        }
+    }
+
+    char_array[5] = '\0';
+}
 
 int16_t PagerClient::readDataMSA(struct PagerClient::pocsag_data *p, size_t len) {
     int16_t state = RADIOLIB_ERR_NONE;
@@ -170,28 +218,6 @@ int16_t PagerClient::readDataMA(uint8_t *data, size_t *len, uint32_t *addr, uint
         uint32_t cw = read();
 //        *framePos++;
         *framePos = *framePos + 1;
-
-
-//         if (!is_sync) {
-//             err_prev = errors;
-//             cw_prev = cw;
-//             if (!PocsagFec.decode(cw, errors, parity_check)) {
-//                 *errs_uncorrected += errors - err_prev;
-// //                Serial.println("BCH Failed twice.");
-//                 *errs_total = errors;
-//                 return (RADIOLIB_ERR_MSG_CORRUPT); // failed within two batches, drop message.
-// //                break;
-//             } else {
-//                 err_prev = errors;
-//                 if (!parity_check && !fixBCH(cw_prev, PocsagFec, errors)) {
-//                     parity_check = true;
-//                     *errs_uncorrected += errors - err_prev;
-//                     *errs_total = errors;
-//                     return (RADIOLIB_ERR_MSG_CORRUPT);
-//                 }
-//             }
-//         }
-
         err_prev = errors;
         cw_prev = cw;
         if (!PocsagFec.decode(cw, errors, parity_check)) {
@@ -205,19 +231,6 @@ int16_t PagerClient::readDataMA(uint8_t *data, size_t *len, uint32_t *addr, uint
             continue;
         } else {
             if (!parity_check) {
-                // cw = cw_prev;
-                // errors = err_prev;
-                // if (!fixBCH(cw, PocsagFec, errors)) {
-                //     *errs_uncorrected += errors - err_prev;
-                //     if (!is_sync) {
-                //         *errs_total = errors;
-                //         return (RADIOLIB_ERR_MSG_CORRUPT);
-                //     }
-                //     is_sync = false;
-                //     parity_check = true;
-                //     continue;
-                // }
-                // parity_check = true;
                 *errs_uncorrected += errors - err_prev;
                 if (!is_sync) {
                     *errs_total = errors;
@@ -293,47 +306,10 @@ int16_t PagerClient::readDataMA(uint8_t *data, size_t *len, uint32_t *addr, uint
         *framePos = *framePos + 1;
         uint32_t cw = read();
 
-//         if (!is_sync) {
-//             err_prev = errors;
-//             cw_prev = cw;
-//             if (!PocsagFec.decode(cw, errors, parity_check)) {
-// //                Serial.printf("BCH Failed twice. ERR %d \n",errors);
-//                 *errs_uncorrected += errors - err_prev;
-//                 *errs_total = errors;
-//                 return (RADIOLIB_ERR_MSG_CORRUPT);
-//             } else {
-//                 err_prev = errors;
-//                 if (!parity_check && !fixBCH(cw_prev, PocsagFec, errors)) {
-//                     *errs_uncorrected += errors - err_prev;
-//                     *errs_total = errors;
-//                     return (RADIOLIB_ERR_MSG_CORRUPT);
-//                 }
-// //                Serial.printf("SYNC RECOVERED, ERRORS %d \n",errors);
-//             }
-//         }
-
         err_prev = errors;
         cw_prev = cw;
         if (PocsagFec.decode(cw, errors, parity_check)) {
             if (!parity_check) {
-                // cw = cw_prev;
-                // errors = err_prev;
-                // if (!fixBCH(cw, PocsagFec, errors)) {
-                //     for (size_t i = 0; i < 5; i++) {
-                //         data[decodedBytes++] = 'X';
-                //     }
-                //     *errs_uncorrected += errors - err_prev;
-                //     if (!is_sync) {
-                //         *errs_total = errors;
-                //         if (deco != 0)
-                //             goto end;
-                //         return (RADIOLIB_ERR_MSG_CORRUPT);
-                //     }
-                //     parity_check = true;
-                //     is_sync = false;
-                //     continue;
-                // }
-                // parity_check = true;
                 for (size_t i = 0; i < 5; i++) {
                     data[decodedBytes++] = 'X';
                 }
@@ -383,19 +359,6 @@ int16_t PagerClient::readDataMA(uint8_t *data, size_t *len, uint32_t *addr, uint
             *addr_next = cw; // returned codeword actually for function determination.
             break;
         }
-
-        // if (PocsagFec.decode(cw, errors)) {
-        //   // Serial.print("\nBCH Corrected ");
-        //   // Serial.print(errors);
-        //   // Serial.print("Errors.\r");
-        //   errors = 0;
-        // } else {
-        //   // Serial.print("\nBCH ERROR. ");
-        //   // Serial.print(errors);
-        //   // Serial.print("Errors.\r");
-        //   // State_code = POCSAG_ERR_PARITY_NOTMATCH;
-        //   break;
-        // }
 
         // check overflow from previous code word
         uint8_t bitPos = RADIOLIB_PAGER_CODE_WORD_LEN - 1 - symbolLength;
@@ -487,6 +450,102 @@ int16_t PagerClient::changeFreq(float base) {
     RADIOLIB_ASSERT(state)
 
     return (state);
+}
+
+int16_t readPacketData(struct PagerClient::pocsag_data *p, const uint8_t *data) {
+    uint32_t data32[16];
+    uint8_t c = 0;
+    for (unsigned int &i: data32) {
+        i = data[c] << 24 | data[c + 1] << 16 | data[c + 2] << 8 | data[c + 3];
+        i = ~i;
+        c += 4;
+    }
+
+    c = 0;
+    uint8_t framePos = 0;
+    // uint16_t errors = 0;
+    bool is_sync = true;
+    CBCH3121 bch;
+    // uint16_t errors_prev = 0;
+    for (size_t i = 0; i < 16; i++) {
+        // Serial.printf("DATA %x\n",data32[i]);
+        bool parity = true;
+        uint16_t errors = 0;
+        if (bch.decode(data32[i], errors, parity) && parity) {
+            // p[c].errs_total += errors;
+            // Serial.printf("BCH CORRECT\n");
+            is_sync = true;
+        } else {
+            if (!is_sync) {
+                break;
+            }
+            is_sync = false;
+            // p[c].errs_total += errors;
+            // p[c].errs_uncorrected += errors;
+            // Serial.printf("BCH FAILED\n");
+        }
+
+        if (data32[i] == RADIOLIB_PAGER_IDLE_CODE_WORD) {
+            break;
+        }
+        if (data32[i] == RADIOLIB_PAGER_FRAME_SYNC_CODE_WORD) {
+            framePos = 0;
+            c++;
+            continue;
+        }
+
+        if (data32[i] >> 31 == 0) { // Address
+            // if (!is_sync && c == 0)
+            //     return (RADIOLIB_ERR_MSG_CORRUPT);
+
+            if (!p[c].is_empty)
+                c++;
+            // p[c].is_empty = false;
+            if (is_sync) {
+                p[c].addr = ((data32[i] << 1) >> 14) << 3 | framePos/2;
+                p[c].func = (data32[i] << 19) >> (11 + 19);
+            }
+        }
+
+        if (data32[i] >> 31 == 1) { // Data
+            p[c].errs_total += errors;
+            if (!is_sync) {
+                for (uint8_t v = 0; v < 5; v++) {
+                    // p[c].data[p[c].len++] = 'X';
+                    p[c].str += 'X';
+                    p[c].len++;
+                }
+                p[c].errs_uncorrected += errors;
+                continue;
+            }
+
+            if (p[c].is_empty)
+                p[c].is_empty = false;
+
+            char bcd[6];
+            decode20(data32[i], bcd);
+            // Serial.printf("DECO %s\n",bcd);
+            p[c].str += bcd;
+            p[c].len += 5;
+
+        }
+        // p[c].len += 32;
+        framePos++;
+    }
+
+    bool empty = true;
+    for (uint8_t i=0;i<POCDAT_SIZE;i++){
+        if (!p[i].is_empty) {
+            empty = false;
+            break;
+        }
+    }
+    if (empty)
+        return RADIOLIB_ERR_MSG_CORRUPT;
+
+
+    // int16_t state = RADIOLIB_ERR_NONE;
+    return RADIOLIB_ERR_NONE;
 }
 //int16_t do_one_bit(){
 //

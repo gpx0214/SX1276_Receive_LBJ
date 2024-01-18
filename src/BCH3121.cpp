@@ -93,7 +93,7 @@ bool CBCH3121::decode(uint32_t &data, uint16_t &errors, bool &parity) {
         auto var = calc_parity(data);
         if (var) {
             parity = false;
-            // Serial.println("Parity check 0 failed.");
+            Serial.println("Parity check 0 failed.");
         }
         // errors += check_parity(data);
         errors += var;
@@ -116,7 +116,7 @@ bool CBCH3121::decode(uint32_t &data, uint16_t &errors, bool &parity) {
             auto var = calc_parity(data);
             if (var) {
                 parity = false;
-                // Serial.println("Parity check 1 failed.");
+                Serial.println("Parity check 1 failed.");
             }
             errors += var + 1U;
             return true;
@@ -174,7 +174,7 @@ bool CBCH3121::decode(uint32_t &data, uint16_t &errors, bool &parity) {
             // }
             auto var = calc_parity(data);
             if (var) {
-                // Serial.println("Parity check 2 failed.");
+                Serial.println("Parity check 2 failed.");
                 parity = false;
             }
             errors += var + 2U;

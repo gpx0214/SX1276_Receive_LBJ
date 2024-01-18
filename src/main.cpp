@@ -39,13 +39,16 @@ SX1276 radio = new Module(RADIO_CS_PIN, RADIO_DIO0_PIN, RADIO_RST_PIN, RADIO_DIO
 // receiving packets requires connection
 // to the module direct output pin
 const int pin = RADIO_BUSY_PIN;
+const uint16_t irq_mask_preamble = 0b0000000000000010;
+const uint16_t irq_mask_sync = 0b0000000000000001;
+const uint16_t irq_mask_payload = 0b0000010000000000;
 //float rssi = 0;
-float fer = 0;
+float fer_last = 0;
 float fers[32]{};
 float actual_frequency = 0;
 float freq_last = 0;
 // create Pager client instance using the FSK module
-PagerClient pager(&radio);
+// PagerClient pager(&radio);
 // timers
 uint64_t format_task_timer = 0;
 uint64_t runtime_timer = 0;
@@ -192,6 +195,8 @@ void updateInfo() {
     } else
         u8g2->drawStr(0, 64, "WIFI OFF");
     sprintf(buffer, "%.1f", getBias(actual_frequency));
+    // fixme: real freq = actual + afc * 1e-6 while fc period, = actual otherwise, may cause wrong ppm reading,
+    //  try to fix this.
     u8g2->drawStr(73, 64, buffer);
     if (sd1.status() && WiFiClass::status() == WL_CONNECTED)
         u8g2->drawStr(89, 64, "D");
@@ -446,26 +451,43 @@ void LBJTEST() {
 
 int initPager() {// initialize SX1276 with default settings
 
-    int state = radio.beginFSK(434.0, 4.8, 5.0, 12.5);
+    int state = radio.beginFSK(actualFreq(ppm), 1.2, 2.5, 12.5);
     RADIOLIB_ASSERT(state)
 
-    state = radio.setGain(1);
+    radio.setCRC(false);
+    radio.fixedPacketLengthMode(RADIOLIB_SX127X_MAX_PACKET_LENGTH_FSK);
+
+    state = radio.setLnaBoost(true);
     RADIOLIB_ASSERT(state)
 
     // initialize Pager client
     // Serial.print(F("[Pager] Initializing ... "));
     // base (center) frequency: 821.2375 MHz + ppm
     // speed:                   1200 bps
-    state = pager.begin(actualFreq(ppm), 1200, false, 2500);
+    // state = pager.begin(actualFreq(ppm), 1200, false, 2500);
+    // RADIOLIB_ASSERT(state)
+
+    state = radio.setAFCAGCTrigger(RADIOLIB_SX127X_RX_TRIGGER_PREAMBLE_DETECT);
     RADIOLIB_ASSERT(state)
+    // state = radio.setAFCAutoClear(true);
+    // RADIOLIB_ASSERT(state)
+    state = radio.setAFCBandwidth(20.8);
+    RADIOLIB_ASSERT(state)
+    state = radio.setAFC(true);
+    RADIOLIB_ASSERT(state)
+
+    uint8_t sync_word[] = {0x83, 0x2D, 0xEA, 0x27};
+    state = radio.setSyncWord(sync_word, 4);
+    RADIOLIB_ASSERT(state)
+
 
     freq_last = actual_frequency;
 
     // start receiving POCSAG messages
     // Serial.print(F("[Pager] Starting to listen ... "));
     // address of this "pager": 12340XX
-    state = pager.startReceive(pin, 1234000, 0xFFFF0);
-    //TODO Enhancement: try to keep a open address filter, we might find something unknown.
+    // state = pager.startReceive(pin, 1234000, 0xFFFF0);
+    radio.startReceive();
     RADIOLIB_ASSERT(state)
 
     // state = radio.setFrequency(actual_freq);
@@ -603,45 +625,24 @@ void handleTelnetCall() {
         if (state == RADIOLIB_ERR_NONE) {
             telnet.printf("> Actual Frequency %f MHz\n", actualFreq(ppm));
             Serial.printf("[Telnet] > Actual Frequency %f MHz\n", actualFreq(ppm));
-        }
-        else {
+        } else {
             telnet.printf("> Failure, Code %d\n", state);
             Serial.printf("[Telnet] > Failure, Code %d\n", state);
         }
-        telnet.printf("> ppm set to %.f\n",ppm);
+        telnet.printf("> ppm set to %.f\n", ppm);
         tel_set_ppm = false;
         telnet.print("< ");
     }
 }
 
 void handleSync() {
-    if (pager.gotSyncState()) {
-        // if (bandwidth_altered) {
-        //     radio.setBandwidth(12.5);
-        //     bandwidth_altered = false;
-        // }
-//        sd1.append("[PGR][DEBUG] SYNC DETECTED.\n");
-        // INFO: This function can not work, calling agc here stops receiving.
-        //    if (radio.getRSSI() >= -60.0 && !agc_triggered){
-        //        Serial.println("[SX1276][D] AGC TRIGGERED.");
-        //        radio.startAGC();
-        //        Serial.printf("[SX1276] AGC Triggered. Current Gain Pos %d\n",radio.getGain());
-        //        agc_triggered = true;
-        //    }
-        if (rxInfo.cnt < 5 && (rxInfo.timer == 0 || esp_timer_get_time() - rxInfo.timer > 11000 ||
-                               esp_timer_get_time() - rxInfo.timer < 0)) {
-            // It seems the micros will overflow, causing the program to stuck here. （真的吗...）
-            float rssi = radio.getRSSI(false, true);
-            // if (rssi >= -80.0 && !agc_triggered){
-            //     radio.startAGC();
-            //     Serial.printf("[SX1276] AGC Triggered. Current Gain Pos %d\n",radio.getGain());
-            //     agc_triggered = true;
-            // }
+    uint16_t irq_flags = radio.getIRQFlags();
+    if ((irq_flags & irq_mask_sync) == irq_mask_sync && (irq_flags & irq_mask_payload) != irq_mask_payload) {
+        if (rxInfo.timer == 0)
             rxInfo.timer = esp_timer_get_time();
-            rxInfo.rssi += rssi; // decreased number of rssi samples due to READ-DATA task running on spi bus.
-            // Serial.printf("[D] RXI %.2f\n",rxInfo.rssi);
-            rxInfo.cnt++;
-        }
+        float rssi = radio.getRSSI(false, true);
+        rxInfo.rssi += rssi;
+        rxInfo.cnt++;
         if (rxInfo.fer == 0)
             rxInfo.fer = radio.getFrequencyError();
     }
@@ -696,20 +697,24 @@ void loop() {
 
     // freqCorrection();
 
-    if (prb_timer != 0 && millis64() - prb_timer > 600 && rxInfo.timer == 0) {
+    if (prb_timer != 0 && esp_timer_get_time() - prb_timer > 600000 && rxInfo.timer == 0) {
         prb_count = 0;
+        // Serial.println("PRB TIMEOUT");
         if (actual_frequency != freq_last) {
             actual_frequency = freq_last;
             int state = radio.setFrequency(actual_frequency);
             if (state != RADIOLIB_ERR_NONE) {
                 Serial.printf("[D] Freq Alter failed %d\n", state);
             } else {
-                Serial.printf("[D] Freq Altered %f \n", actual_frequency);
+                Serial.printf("[D] PRB_TIMEOUT Freq Altered %f \n", actual_frequency);
+                // Serial.printf("AFC %.2f Hz\n",radio.getAFCError());
             }
         }
         for (auto &i: fers) {
             i = 0;
         }
+        radio.startReceive();
+        // Serial.printf("AFC %.2f Hz\n",radio.getAFCError());
         prb_timer = 0;
     }
 
@@ -831,18 +836,22 @@ void loop() {
 
     // the number of batches to wait for
     // 2 batches will usually be enough to fit short and medium messages
-    if (pager.available() >= 2 && fd_state == TASK_INIT) { // todo add session timeout exception to prevent stuck here.
+    if (digitalRead(RADIO_DIO0_PIN) && fd_state == TASK_INIT) {
         // Serial.println("[PHY-LAYER][D] AVAILABLE > 2.");
         setCpuFrequencyMhz(240);
         db = new data_bond;
         runtime_timer = millis64();
         timer4 = millis64();
-        int state = pager.readDataMSA(db->pocsagData, 0);
-//        sd1.append("[PHY-LAYER][D] AVAILABLE > 2.\n");
         rxInfo.rssi = rxInfo.rssi / (float) rxInfo.cnt;
         rxInfo.cnt = 0;
         rxInfo.timer = 0;
         prb_timer = 0;
+
+        // Serial.printf("AFC %.2f Hz\n",radio.getAFCError());
+        actual_frequency = (float) (actual_frequency + (radio.getAFCError() * 1e-6));
+        radio.setFrequency(actual_frequency);
+//        sd1.append("[PHY-LAYER][D] AVAILABLE > 2.\n");
+
 
 //        Serial.printf("CPU FREQ TO %d MHz\n",ets_get_cpu_frequency());
 
@@ -864,7 +873,14 @@ void loop() {
 
         Serial.println(F("[Pager] Received pager data, decoding ... "));
         sd1.append(2, "正在解码信号...\n");
+        uint8_t data[RADIOLIB_SX127X_MAX_PACKET_LENGTH_FSK];
+        radio.readData(data, RADIOLIB_SX127X_MAX_PACKET_LENGTH_FSK);
 
+        Serial.printf("FREQ %f\n", actual_frequency);
+        // Serial.printf("AFC %.2f Hz\n",radio.getAFCError());
+
+        // int state = pager.readDataMSA(db->pocsagData, 0);
+        int state = readPacketData(db->pocsagData, data);
         // you can read the data as an Arduino String
         // String str = {};
 
@@ -937,69 +953,74 @@ void loop() {
 
 void handlePreamble() {
     // todo: unable to use this function, try to fix this.
-    if (pager.gotPreambleState() && !pager.gotSyncState() && freq_correction) {
+    // if (pager.gotPreambleState() && !pager.gotSyncState() && freq_correction) {
+    //     if (prb_count == 0)
+    //         prb_timer = millis64();
+    //     ++prb_count;
+    //     if (prb_count < 16) {
+    //
+    //         fers[prb_count - 1] = radio.getFrequencyError();
+    //         if ((fers[prb_count - 1] > 1000.0 || fers[prb_count - 1] < -1000.0) && prb_count != 1 &&
+    //             abs(fers[prb_count - 1] - fers[prb_count - 2]) < 500) {
+    //             // Perform frequency correction
+    //             auto target_freq = (float) (actual_frequency + fers[prb_count - 1] * 1e-6);
+    //             int state = radio.setFrequency(target_freq);
+    //             if (state != RADIOLIB_ERR_NONE) {
+    //                 Serial.printf("[D] Freq Alter failed %d, target freq %f\n", state, target_freq);
+    //                 sd1.append("[D] Freq Alter failed %d, target freq %f\n", state, target_freq);
+    //             } else {
+    //                 actual_frequency = target_freq;
+    //                 Serial.printf("[D] Freq Altered %f \n", actual_frequency);
+    //             }
+    //         }
+    //     }
+    // }
+    uint16_t irq_flags = radio.getIRQFlags();
+    if ((irq_flags & irq_mask_preamble) == irq_mask_preamble && (irq_flags & irq_mask_sync) != irq_mask_sync &&
+        freq_correction) {
         if (prb_count == 0)
-            prb_timer = millis64();
-        // if (millis64() - prb_timer > 500) {
-        //     prb_count = 0;
-        //     if (actual_frequency != freq_last) {
-        //         actual_frequency = freq_last;
-        //         int state = radio.setFrequency(actual_frequency);
-        //         if (state != RADIOLIB_ERR_NONE) {
-        //             Serial.printf("[D] Freq Alter failed %d\n", state);
-        //         }
-        //     }
-        //     for (auto &i: fers) {
-        //         i = 0;
-        //     }
-        // }
+            prb_timer = esp_timer_get_time();
         ++prb_count;
-        if (prb_count < 16) {
-            // todo: Implement automatic bandwidth adjustment.
-            // if (prb_count == 1) {
-            //     radio.setBandwidth(20.8);
-            //     bandwidth_altered = true;
-            // }
-            // else if (prb_count > 6 && bandwidth_altered) {
-            //     radio.setBandwidth(12.5);
-            //     bandwidth_altered = false;
-            // }
+        delay(40); // Slow down a little to see if we are about to sync
+        if ((irq_flags & irq_mask_sync) != RADIOLIB_SX127X_FLAG_SYNC_ADDRESS_MATCH &&
+            esp_timer_get_time() - prb_timer < 427000 && prb_count < 16) {
             fers[prb_count - 1] = radio.getFrequencyError();
-            if ((fers[prb_count - 1] > 1000.0 || fers[prb_count - 1] < -1000.0) && prb_count != 1 &&
-                abs(fers[prb_count - 1] - fers[prb_count - 2]) < 500) {
+            if (abs(fers[prb_count - 1] - fers[prb_count - 2]) < 500.0 && abs(fers[prb_count - 1]) > 500.0 &&
+                prb_count != 1) {
                 // Perform frequency correction
                 auto target_freq = (float) (actual_frequency + fers[prb_count - 1] * 1e-6);
                 int state = radio.setFrequency(target_freq);
+                float afc = radio.getAFCError();
                 if (state != RADIOLIB_ERR_NONE) {
-                    Serial.printf("[D] Freq Alter failed %d, target freq %f\n", state, target_freq);
-                    sd1.append("[D] Freq Alter failed %d, target freq %f\n", state, target_freq);
+                    Serial.printf("[D] Freq Alter failed %d, target freq %f\n", state, target_freq + (afc * 1e-6));
+                    sd1.append("[D] Freq Alter failed %d, target freq %f\n", state, target_freq + (afc * 1e-6));
                 } else {
                     actual_frequency = target_freq;
-                    Serial.printf("[D] Freq Altered %f \n", actual_frequency);
+                    Serial.printf("[D] Freq Altered %f \n", actual_frequency + (afc * 1e-6));
                 }
             }
         }
     }
 }
 
-void freqCorrection() {
-    if (rtc.getTemperature() < 10 && runtime_timer == 0 && !pager.gotSyncState() && ppm != 3) {
-        ppm = 3;
-        int16_t state = radio.setFrequency(actualFreq(ppm));
-        if (state == RADIOLIB_ERR_NONE)
-            Serial.printf("[SX1276] Change Actual Frequency to %f MHz\n", actualFreq(ppm));
-        else
-            Serial.printf("Failure, Code %d\n", state);
-    }
-    if (rtc.getTemperature() > 10 && runtime_timer == 0 && !pager.gotSyncState() && ppm != 6) {
-        ppm = 6;
-        int16_t state = radio.setFrequency(actualFreq(ppm));
-        if (state == RADIOLIB_ERR_NONE)
-            Serial.printf("[SX1276] Change Actual Frequency to %f MHz\n", actualFreq(ppm));
-        else
-            Serial.printf("Failure, Code %d\n", state);
-    }
-}
+// void freqCorrection() {
+//     if (rtc.getTemperature() < 10 && runtime_timer == 0 && !pager.gotSyncState() && ppm != 3) {
+//         ppm = 3;
+//         int16_t state = radio.setFrequency(actualFreq(ppm));
+//         if (state == RADIOLIB_ERR_NONE)
+//             Serial.printf("[SX1276] Change Actual Frequency to %f MHz\n", actualFreq(ppm));
+//         else
+//             Serial.printf("Failure, Code %d\n", state);
+//     }
+//     if (rtc.getTemperature() > 10 && runtime_timer == 0 && !pager.gotSyncState() && ppm != 6) {
+//         ppm = 6;
+//         int16_t state = radio.setFrequency(actualFreq(ppm));
+//         if (state == RADIOLIB_ERR_NONE)
+//             Serial.printf("[SX1276] Change Actual Frequency to %f MHz\n", actualFreq(ppm));
+//         else
+//             Serial.printf("Failure, Code %d\n", state);
+//     }
+// }
 
 void handleSerialInput() {
     if (Serial.available()) {
@@ -1049,7 +1070,7 @@ void handleSerialInput() {
             esp_reset_reason_t reason = esp_reset_reason();
             Serial.printf("$ RST: %s\n", printResetReason(reason).c_str());
         } else if (in == "ppm") {
-            if (runtime_timer == 0 && !pager.gotSyncState()) {
+            if (runtime_timer == 0 && (radio.getIRQFlags() & irq_mask_preamble) != irq_mask_preamble) {
                 ppm = 3;
                 int16_t state = radio.setFrequency(actualFreq(ppm));
                 if (state == RADIOLIB_ERR_NONE)
@@ -1058,21 +1079,29 @@ void handleSerialInput() {
                     Serial.printf("$ Failure, Code %d\n", state);
             } else {
                 Serial.println("$ Unable to change frequency due to occupation");
-                if (pager.available())
-                    Serial.println("$ pager.available == true");
+                if (digitalRead(RADIO_DIO0_PIN))
+                    Serial.println("$ RADIO_DIO0_PIN == 1");
                 if (runtime_timer)
                     Serial.printf("$ runtime_timer = %llu, running %llu\n", runtime_timer, millis64() - runtime_timer);
             }
         } else if (in == "ppm read") {
             Serial.printf("$ ppm %.1f\n", ppm);
         } else if (in == "afc off") {
-            prb_count = 0;
-            prb_timer = 0;
-            freq_correction = false;
-            Serial.println("$ Frequency Correction Disabled");
+            if ((radio.getIRQFlags() & irq_mask_preamble) != irq_mask_preamble) {
+                prb_count = 0;
+                prb_timer = 0;
+                freq_correction = false;
+                radio.setAFC(false);
+                Serial.println("$ Frequency Correction Disabled");
+            }
         } else if (in == "afc on") {
-            freq_correction = true;
-            Serial.println("$ Frequency Correction Enabled");
+            if ((radio.getIRQFlags() & irq_mask_preamble) != irq_mask_preamble) {
+                freq_correction = true;
+                radio.setAFC(true);
+                Serial.println("$ Frequency Correction Enabled");
+            }
+        } else if (in == "irq") {
+            Serial.println(radio.getIRQFlags(), BIN);
         }
     }
 }

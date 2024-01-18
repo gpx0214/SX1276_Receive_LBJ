@@ -122,6 +122,8 @@ void timeTask(void *pVoid);
 
 //extern bool ipChanged(uint16_t interval);
 
+int16_t readPacketData(struct PagerClient::pocsag_data *p, const uint8_t *data);
+
 int16_t readDataLBJ(struct PagerClient::pocsag_data *p, struct lbj_data *l);
 
 int8_t hexToChar(int8_t hex1, int8_t hex2);
