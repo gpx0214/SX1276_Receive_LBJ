@@ -85,7 +85,7 @@ static const char *locos[] = { // todo try not to use static, we are running out
         "",
         "",
         "",
-        "东风7G?", // 这又是什么？
+        "",
         "东风21",
         "",
         "",
@@ -154,12 +154,12 @@ static const char *locos[] = { // todo try not to use static, we are running out
         "东风7E",
         "NYJ1",
         "NZJ1",
-        "ＮZJ2",
+        "NZJ2",
         "东风4DJ",
         "新曙光",
         "神州",
         "NJ2",
-        "东风7G", // DF7G?
+        "东风7G",
         "NDJ3",
         "",
         "",
@@ -233,12 +233,12 @@ static const char *locos[] = { // todo try not to use static, we are running out
         "蓝箭动车",
         "先锋号",
         "韶山7E",
-        "韶山4G",
+        "韶山4G", // SSJ3??
+        "韶山3C",
         "",
-        "",
-        "",
+        "天梭",
         // HXD
-        "和谐",
+        "DJ4和谐",
         "",
         "HXD1",
         "HXD2",
@@ -258,7 +258,7 @@ static const char *locos[] = { // todo try not to use static, we are running out
         "",
         "FXD1J",
         "FXD3J",
-        "",
+        "", // FXD3J鼓？
         "",
         "",
         "",
@@ -313,13 +313,13 @@ static const char *locos[] = { // todo try not to use static, we are running out
         // EMU
         "CRH1",
         "CRH2",
-        "", // CRH3?
+        "CRH3",
         "",
         "CRH5",
         "CRH380A",
         "CRH380B",
         "CRH380C",
-        "",
+        "CRH380D",
         "",
         "CR400AF",
         "CR400BF"
