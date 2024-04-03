@@ -89,6 +89,7 @@ extern uint64_t prb_timer;
 extern uint32_t prb_count;
 extern float ppm;
 extern bool freq_correction;
+extern bool telnet_online;
 
 bool isConnected();
 
