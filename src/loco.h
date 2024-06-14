@@ -173,7 +173,7 @@ static const char *locos[] = { // todo try not to use static, we are running out
         "",
         "",
         "",
-        "",
+        "FXN3B",
         "",
         "",
         "",
