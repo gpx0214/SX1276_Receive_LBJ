@@ -177,7 +177,7 @@ static const char *locos[] = { // todo try not to use static, we are running out
         "",
         "FXN3B",
         "",
-        "",
+        "FXN3C",
         "FXN5C",
         "FXN3-J",
         "",// FXN5J?
@@ -265,7 +265,7 @@ static const char *locos[] = { // todo try not to use static, we are running out
         "HXD1D-J",
         "",// HXD3DJ?
         "FXD1H",
-        "",
+        "FXD3H",
         "",
         "",
         "",
