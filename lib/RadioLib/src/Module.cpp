@@ -130,6 +130,7 @@ void Module::SPIwriteRegisterBurst(uint16_t reg, uint8_t* data, size_t numBytes)
 }
 
 void Module::SPIwriteRegister(uint16_t reg, uint8_t data) {
+  RADIOLIB_DEBUG_PRINTLN("[0x%02X]=%02X", reg, data);
   if(!SPIstreamType) {
     SPItransfer(SPIwriteCommand, reg, &data, NULL, 1);
   } else {

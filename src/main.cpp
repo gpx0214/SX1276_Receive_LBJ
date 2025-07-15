@@ -209,7 +209,7 @@ void updateInfo() {
     u8g2->drawStr(96, 64, buffer);
     voltage = battery.readVoltage() * 2;
     sprintf(buffer, "%1.2f", voltage); // todo: Implement average voltage reading.
-    if (voltage < 3.15 && !low_volt_warned) {
+    if (false && voltage < 3.15 && !low_volt_warned) {
         Serial.printf("Warning! Low Voltage detected, %1.2fV\n", voltage);
         sd1.append("低压警告，电池电压%1.2fV\n", voltage);
         low_volt_warned = true;
@@ -547,6 +547,14 @@ int initPager() {// initialize SX1276 with default settings
 
     // state = radio.setFrequency(actual_freq);
     // RADIOLIB_ASSERT(state)
+
+    for (uint8_t i=0; i < 0x73; i++) {
+        if (i % 16 == 0) {
+            Serial.printf("\n[SX1276]reg %02X: ", i);
+        }
+        uint8_t v = radio.getMod()->SPIreadRegister(i);
+        Serial.printf("%02X ", v);
+    }
 
     return state;
 }
