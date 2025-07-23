@@ -21,12 +21,21 @@ enum menu_pages {
     MENU_OLED
 };
 
+
+enum keys {
+    KEY_DOWN,
+    KEY_UP,
+    KEY_LEFT,
+    KEY_RIGHT,
+    KEY_OK,
+};
+
 class Menu : public ScreenWrapper {
 public:
     void openMenu();
     bool isMenu() const;
     void closeMenu();
-    void handleKey(bool up);
+    void handleKey(int8_t up);
     void acknowledge();
     bool ppmChanged() const;
     void clearPPMFlag();
@@ -42,13 +51,13 @@ private:
     void showReadPPM();
     void showTFSettings(int16_t page);
     void highlightReadPPM(int8_t item);
-    void alterDigitPPM(int8_t item, bool plus);
+    void alterDigitPPM(int8_t item, int8_t plus);
     void drawDigitPPM(int8_t item, bool inv = true, bool send = false);
     void confirmDigitAltPPM();
     void confirmUnmount();
     void showIndexFile();
     void highlightIndex(int8_t item);
-    void alterDigitIndex(int8_t item, bool plus);
+    void alterDigitIndex(int8_t item, int8_t plus);
     void drawDigitIndex(int8_t item, bool inv = true, bool send = false);
     void showOLED();
     bool set_ppm = false;

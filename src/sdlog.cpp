@@ -7,8 +7,6 @@
 // Initialize static variables.
 // File SD_LOG::log;
 // File SD_LOG::csv;
-// bool SD_LOG::is_newfile = false;
-// bool SD_LOG::is_newfile_csv = false;
 // char SD_LOG::filename[32] = "";
 // char SD_LOG::filename_csv[32] = "";
 // bool SD_LOG::sd_log = false;
@@ -38,8 +36,6 @@ SD_LOG::SD_LOG() :
         sd_log(false),
         sd_csv(false),
         sd_cd(false),
-        is_newfile(false),
-        is_newfile_csv(false),
         is_startline(true),
         is_startline_csv(true),
         size_checked(false),
@@ -67,27 +63,27 @@ void SD_LOG::getFilename(const char *path) {
         sd_log = false;
         return;
     }
+
+    getLocalTime(&timein, 1);
+    if (timein.tm_year + 1900 > 2001) {
+        sprintf(filename, "%02d%02d%02d%02d.txt", (timein.tm_year + 1900) % 100, timein.tm_mon + 1,timein.tm_mday, timein.tm_hour);
+        Serial.printf("[SDLOG] using %s \n", filename);
+        sd_log = true;
+        return;
+    }
+
     char last[32];
     // read index
     int counter = readIndex(cwd);
-    // int counter = 0;
-    // while (cwd.openNextFile()) {
-    //     counter++;
-    // }
+
     sprintf(last, "LOG_%04d.txt", counter - 1);
     String last_path = String(String(path) + "/" + String(last));
-    if (!filesys->exists(last_path)) {
-        sprintf(last, "LOG_%04d.txt", counter - 1);
-        last_path = String(String(path) + "/" + String(last));
-    }
     File last_log = filesys->open(last_path);
-
-    if (last_log.size() <= MAX_LOG_SIZE && counter > 0) {
-        sprintf(filename, "%s", last_log.name());
+    if ((!last_log) || last_log.size() <= MAX_LOG_SIZE && counter > 0) {
+        sprintf(filename, "%s", last);
         log_count = counter;
     } else {
         sprintf(filename, "LOG_%04d.txt", counter);
-        is_newfile = true;
         log_count = counter; // +1?
         // update index
         updateIndex(String(path),counter + 1);
@@ -102,7 +98,7 @@ void SD_LOG::getFilenameCSV(const char *path) {
         filesys->mkdir(path);
         cwd = filesys->open(path, FILE_READ, false);
         if (!cwd) {
-            Serial.println("[SDLOG] Failed to open csv directory!");
+            Serial.printf("[SDLOG] Failed to open csv directory %s!\n", path);
             Serial.println("[SDLOG] Will not write csv to SD card.");
             sd_csv = false;
             return;
@@ -113,25 +109,25 @@ void SD_LOG::getFilenameCSV(const char *path) {
         sd_csv = false;
         return;
     }
+    getLocalTime(&timein, 1);
+    if (timein.tm_year + 1900 > 2001) {
+        sprintf(filename_csv, "%02d%02d%02d%02d.csv", (timein.tm_year + 1900) % 100, timein.tm_mon + 1, timein.tm_mday, timein.tm_hour);
+        Serial.printf("[SDLOG] using %s \n", filename_csv);
+        sd_csv = true;
+        return;
+    }
+
     char last[32];
     int counter = readIndex(cwd);
-    // int counter = 0;
-    // while (cwd.openNextFile()) {
-    //     counter++;
-    // }
+
+    counter++;
     sprintf(last, "CSV_%04d.csv", counter - 1);
     String last_path = String(String(path) + "/" + String(last));
-    if (!filesys->exists(last_path)) {
-        sprintf(last, "CSV_%04d.csv", counter - 1);
-        last_path = String(String(path) + "/" + String(last));
-    }
     File last_csv = filesys->open(last_path);
-
-    if (last_csv.size() <= MAX_LOG_SIZE && counter > 0 && last_csv) {
-        sprintf(filename_csv, "%s", last_csv.name());
+    if ((!last_csv) || last_csv.size() <= MAX_LOG_SIZE && counter > 0) {
+        sprintf(filename_csv, "%s", last);
     } else {
         sprintf(filename_csv, "CSV_%04d.csv", counter);
-        is_newfile_csv = true;
         updateIndex(String(path),counter + 1);
     }
     Serial.printf("[SDLOG] %d csv files, using %s \n", counter, filename_csv);
@@ -146,7 +142,7 @@ int SD_LOG::begin(const char *path) {
     log_path = String(String(path) + '/' + filename);
     log = filesys->open(log_path, "a", true);
     if (!log) {
-        Serial.println("[SDLOG] Failed to open log file!");
+        Serial.printf("[SDLOG] Failed to open log file %s!\n", path);
         Serial.println("[SDLOG] Will not write log to SD card.");
         sd_log = false;
         return -1;
@@ -164,7 +160,7 @@ int SD_LOG::beginCSV(const char *path) {
     csv_path = String(String(path) + '/' + filename_csv);
     csv = filesys->open(csv_path, "a", true);
     if (!csv) {
-        Serial.println("[SDLOG] Failed to open csv file!");
+        Serial.printf("[SDLOG] Failed to open csv file %s!\n", path);
         Serial.println("[SDLOG] Will not write csv to SD card.");
         sd_csv = false;
         return -1;
@@ -182,7 +178,7 @@ int SD_LOG::beginCSV(const char *path) {
 
 void SD_LOG::writeHeader() {
     log.println("-------------------------------------------------");
-    if (is_newfile) {
+    if (log.size() < 60) {
         log.printf("ESP32 DEV MODULE LOG FILE %s \n", filename);
     }
     log.printf("BEGIN OF SYSTEM LOG, STARTUP TIME %llu MS.\n", millis64());
@@ -197,17 +193,15 @@ void SD_LOG::writeHeader() {
 void SD_LOG::writeHeaderCSV() { // TODO: needs more confirmation about title.
     csv.close();
     csv = filesys->open(csv_path, "a");
-    // Serial.printf("csvfile %s, csv size %d, is_newfile_csv = %d\n",csv.path(),csv.size(),is_newfile_csv);
-    if (is_newfile_csv && csv.size() < 200) {
-        csv.printf("# ESP32 DEV MODULE CSV FILE %s \n", filename_csv);
-        // csv.printf(
-        //         "电压,系统时间,日期,时间,LBJ时间,方向,级别,车次,速度,公里标,机车编号,线路,纬度,经度,HEX,RSSI,FER,原始数据,错误,错误率\n");
-        csv.printf(
-                "温度,电压,系统时间,日期,时间,LBJ时间,方向,级别,车次,速度,公里标,机车编号,线路,纬度,经度,HEX,RSSI,FER,PPM(FER),PPM(CURRENT),原始数据,错误,错误率\n");
+    if (csv.size() == 0) {
+        csv.printf("\xef\xbb\xbf");
+    }
+    if (csv.size() < 100) {
+        csv.printf("时间,方向,级别,车次,速度,公里标,机车编号,线路,经度,纬度,RSSI,FER,PPM(CURRENT),原始数据,错误\n");
         if (sd_log) {
-            append("[SDLOG][D] Writing CSV Headers, is_newfile = %d, filesize = %d\n", is_newfile_csv, csv.size());
+            append("[SDLOG][D] Writing CSV Headers, filesize = %d\n", csv.size());
         }
-        Serial.printf("[SDLOG][D] Writing CSV Headers, is_newfile = %d, filesize = %d\n", is_newfile_csv, csv.size());
+        Serial.printf("[SDLOG][D] Writing CSV Headers, filesize = %d\n", csv.size());
     }
     // csv.flush();
     csv.close();
@@ -234,19 +228,19 @@ void SD_LOG::appendCSV(const char *format, ...) { // TODO: maybe implement item 
     va_start(args, format);
     vsnprintf(buffer, sizeof(buffer), format, args);
     va_end(args);
-    if (is_startline_csv) {
-        csv.printf("%1.2f,", battery.readVoltage() * 2);
-        csv.printf("%llu,", millis64());
-        if (getLocalTime(&timein, 0)) {
-            csv.printf("%d-%02d-%02d,%02d:%02d:%02d,", timein.tm_year + 1900, timein.tm_mon + 1,
-                       timein.tm_mday, timein.tm_hour, timein.tm_min, timein.tm_sec);
-        } else {
-            csv.printf("null,null,");
-        }
-        is_startline_csv = false;
-    }
-    if (nullptr != strchr(format, '\n')) /* detect end of line in stream */
-        is_startline_csv = true;
+    // if (is_startline_csv) {
+    //     csv.printf("%1.2f,", battery.readVoltage() * 2);
+    //     csv.printf("%llu,", millis64());
+    //     if (getLocalTime(&timein, 0)) {
+    //         csv.printf("%d-%02d-%02d,%02d:%02d:%02d,", timein.tm_year + 1900, timein.tm_mon + 1,
+    //                    timein.tm_mday, timein.tm_hour, timein.tm_min, timein.tm_sec);
+    //     } else {
+    //         csv.printf("null,null,");
+    //     }
+    //     is_startline_csv = false;
+    // }
+    // if (nullptr != strchr(format, '\n')) /* detect end of line in stream */
+    //     is_startline_csv = true;
     csv.print(buffer);
     csv.flush();
 }
@@ -310,7 +304,7 @@ void SD_LOG::appendBuffer(const char *format, ...) {
     vsnprintf(buffer, sizeof(buffer), format, args);
     va_end(args);
     if (is_startline) {
-        char *time_buffer = new char[128];
+        char *time_buffer = new char[32];
         if (getLocalTime(&timein, 1)) {
             sprintf(time_buffer, "%d-%02d-%02d %02d:%02d:%02d > ", timein.tm_year + 1900, timein.tm_mon + 1,
                     timein.tm_mday, timein.tm_hour, timein.tm_min, timein.tm_sec);
@@ -352,10 +346,6 @@ void SD_LOG::sendBufferLOG() {
         log.close();
         begin(log_directory);
     }
-    if (log.size() >= MAX_LOG_SIZE && !size_checked) {
-        log.close();
-        begin(log_directory);
-    }
     log.print(large_buffer);
     log.flush();
     large_buffer = "";
@@ -369,30 +359,37 @@ void SD_LOG::appendBufferCSV(const char *format, ...) {
     va_start(args, format);
     vsnprintf(buffer, sizeof(buffer), format, args);
     va_end(args);
-    if (is_startline_csv) {
-        char *headers = new char[128];
-#ifdef HAS_RTC
-        sprintf(headers, "%.2f,", rtc.getTemperature());
-        large_buffer_csv += headers;
-#else
-        sprintf(headers, "null,");
-        large_buffer_csv += headers;
-#endif
-        sprintf(headers, "%1.2f,%llu,", battery.readVoltage() * 2, millis64());
-        large_buffer_csv += headers;
-        if (getLocalTime(&timein, 1)) {
-            sprintf(headers, "%d-%02d-%02d,%02d:%02d:%02d,", timein.tm_year + 1900, timein.tm_mon + 1,
-                    timein.tm_mday, timein.tm_hour, timein.tm_min, timein.tm_sec);
-            large_buffer_csv += headers;
-        } else {
-            sprintf(headers, "null,null,");
-            large_buffer_csv += headers;
-        }
-        delete[] headers;
-        is_startline_csv = false;
-    }
-    if (nullptr != strchr(format, '\n')) /* detect end of line in stream */
-        is_startline_csv = true;
+//     if (is_startline_csv) {
+//         char *headers = new char[128];
+// #ifdef HAS_RTC
+//         sprintf(headers, "%.2f,", rtc.getTemperature());
+//         large_buffer_csv += headers;
+// #else
+//         sprintf(headers, "null,");
+//         large_buffer_csv += headers;
+// #endif
+//         sprintf(headers, "%1.2f,%llu,", battery.readVoltage() * 2, millis64());
+//         large_buffer_csv += headers;
+//         if (getLocalTime(&timein, 1)) {
+//             sprintf(headers, "%d-%02d-%02d,%02d:%02d:%02d,", timein.tm_year + 1900, timein.tm_mon + 1,
+//                     timein.tm_mday, timein.tm_hour, timein.tm_min, timein.tm_sec);
+//             large_buffer_csv += headers;
+//         } else {
+//             sprintf(headers, "null,null,");
+//             large_buffer_csv += headers;
+//         }
+//         delete[] headers;
+//         is_startline_csv = false;
+//     }
+//     if (nullptr != strchr(format, '\n')) /* detect end of line in stream */
+//         is_startline_csv = true;
+    large_buffer_csv += buffer;
+}
+
+
+void SD_LOG::addBufferCSV(const char* buffer) {
+    if (!sd_csv)
+        return;
     large_buffer_csv += buffer;
 }
 
@@ -587,24 +584,11 @@ String SD_LOG::retFilename(file_type type) {
     return {};
 }
 
-int SD_LOG::createIndex(File cwd, const String& index_path) {
-    File index = filesys->open(index_path,FILE_WRITE);
-    // Write Header
-    index.println("-------------------------------------------------");
-    index.println("ESP32 DEV MODULE INDEX FILE");
-    index.println("PROGRAM GENERATED, DO NOT EDIT.");
-    index.println("-------------------------------------------------");
-    index.printf("DIRECTORY: %s\n",cwd.path());
-    index.close();
-    // Count files
+int SD_LOG::countFile(File cwd) {
     int counter = -1;
     while (cwd.openNextFile()) {
         counter++;
     }
-    // Write count
-    index = filesys->open(index_path,FILE_APPEND);
-    index.printf("FILE COUNTER: %d\n",counter);
-    index.close();
     return counter;
 }
 
@@ -612,7 +596,8 @@ int SD_LOG::readIndex(const File& cwd) {
     String index_path = String(cwd.path()) + "/INDEX";
     int counter = 0;
     if (!filesys->exists(index_path)) {
-        counter = createIndex(cwd, index_path);
+        counter = countFile(cwd);
+        updateIndex(index_path, counter);
     } else {
         File index = filesys->open(index_path,FILE_READ, false);
         while (index.available()) {

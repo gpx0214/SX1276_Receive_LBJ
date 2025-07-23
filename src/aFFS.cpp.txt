@@ -109,7 +109,7 @@ void aFFS::append(lbj_data lbj, rx_info rx, float volt, float temp) {
     }
     // index_file = spiffs.open(index_path, FILE_APPEND);
     /* Standard format of cache:
-     * 条目数,电压,系统时间,温度,日期,时间,type,train,direction,speed,position,time,info2_hex,loco_type,lbj_class,loco,route,
+     * 条目数,电压,系统时间,温度,日期,时间,type,train,direction,speed,position,time,loco_type,lbj_class,loco,route,
      * route_utf8,pos_lon_deg,pos_lon_min,pos_lat_deg,pos_lat_min,pos_lon,pos_lat,rssi,fer,ppm
      */
     String line;
@@ -121,13 +121,13 @@ void aFFS::append(lbj_data lbj, rx_info rx, float volt, float temp) {
     sprintf(buffer, "%.2f,%d-%02d-%02d,%02d:%02d:%02d,", temp, now.tm_year + 1900, now.tm_mon + 1,
             now.tm_mday, now.tm_hour, now.tm_min, now.tm_sec);
     line += buffer;
-    //type,train,direction,speed,position,time,info2_hex,loco_type,
-    sprintf(buffer, "%d,%s,%d,%s,%s,%s,%s,%s,", lbj.type, lbj.train, lbj.direction, lbj.speed, lbj.position, lbj.time,
-            lbj.info2_hex.c_str(), lbj.loco_type.c_str());
+    //type,train,direction,speed,position,time,loco_type,
+    sprintf(buffer, "%d,%s,%d,%s,%s,%s,%s,", lbj.type, lbj.train, lbj.direction, lbj.speed, lbj.position, lbj.time,
+            lbj.loco_type.c_str());
     line += buffer;
     // lbj_class,loco,route,route_utf8,pos_lon_deg,pos_lon_min,pos_lat_deg,pos_lat_min,pos_lon,pos_lat
-    sprintf(buffer, "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,", lbj.lbj_class, lbj.loco, lbj.route, lbj.route_utf8,
-            lbj.pos_lon_deg, lbj.pos_lon_min, lbj.pos_lat_deg, lbj.pos_lat_min, lbj.pos_lon, lbj.pos_lat);
+    sprintf(buffer, "%s,%s,%s,%s,%s,%s,%s,", lbj.lbj_class, lbj.loco, lbj.route,
+            lbj.pos_lon_deg, lbj.pos_lon_min, lbj.pos_lat_deg, lbj.pos_lat_min);
     line += buffer;
     // rssi,fer,ppm
     sprintf(buffer, "%.2f,%.2f,%.2f", rx.rssi, rx.fer, rx.ppm);
@@ -222,33 +222,30 @@ bool aFFS::retrieve(lbj_data *lbj, rx_info *rx, bool last) {
     }
     // serial.printf("[D]%d,%s,%d\n",lbj->type,lbj->train,lbj->direction);
     // sprintf(buffer, "%d,%s,%d,%s,%s,%s,%s,%s,", lbj.type, lbj.train, lbj.direction, lbj.speed, lbj.position, lbj.time,
-    //         lbj.info2_hex.c_str(), lbj.loco_type.c_str());
+    //         lbj.loco_type.c_str());
     lbj->type = (int8_t) std::stoi(tokens[6].c_str());
     tokens[7].toCharArray(lbj->train, sizeof lbj->train);
     lbj->direction = (int8_t) std::stoi(tokens[8].c_str());
     tokens[9].toCharArray(lbj->speed, sizeof lbj->speed);
     tokens[10].toCharArray(lbj->position, sizeof lbj->position);
     tokens[11].toCharArray(lbj->time, sizeof lbj->time);
-    lbj->info2_hex = tokens[12];
-    lbj->loco_type = tokens[13];
+    lbj->loco_type = tokens[12];
 
-    // sprintf(buffer, "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,", lbj.lbj_class, lbj.loco, lbj.route, lbj.route_utf8,
-    //         lbj.pos_lon_deg, lbj.pos_lon_min, lbj.pos_lat_deg, lbj.pos_lat_min, lbj.pos_lon, lbj.pos_lat);
-    tokens[14].toCharArray(lbj->lbj_class, sizeof lbj->lbj_class);
-    tokens[15].toCharArray(lbj->loco, sizeof lbj->loco);
-    tokens[16].toCharArray(lbj->route, sizeof lbj->route);
-    tokens[17].toCharArray(lbj->route_utf8, sizeof lbj->route_utf8);
-    tokens[18].toCharArray(lbj->pos_lon_deg, sizeof lbj->pos_lon_deg);
-    tokens[19].toCharArray(lbj->pos_lon_min, sizeof lbj->pos_lon_min);
-    tokens[20].toCharArray(lbj->pos_lat_deg, sizeof lbj->pos_lat_deg);
-    tokens[21].toCharArray(lbj->pos_lat_min, sizeof lbj->pos_lat_min);
-    tokens[22].toCharArray(lbj->pos_lon, sizeof lbj->pos_lon);
-    tokens[23].toCharArray(lbj->pos_lat, sizeof lbj->pos_lat);
+    // sprintf(buffer, "%s,%s,%s,%s,%s,%s,%s,", lbj.lbj_class, lbj.loco, lbj.route,
+    //         lbj.pos_lon_deg, lbj.pos_lon_min, lbj.pos_lat_deg, lbj.pos_lat_min);
+    tokens[13].toCharArray(lbj->lbj_class, sizeof lbj->lbj_class);
+    tokens[14].toCharArray(lbj->loco, sizeof lbj->loco);
+    tokens[15].toCharArray(lbj->route, sizeof lbj->route);
+    // gbk2utf8(lbj->route, lbj->route_utf8, 9);
+    tokens[16].toCharArray(lbj->pos_lon_deg, sizeof lbj->pos_lon_deg);
+    tokens[17].toCharArray(lbj->pos_lon_min, sizeof lbj->pos_lon_min);
+    tokens[18].toCharArray(lbj->pos_lat_deg, sizeof lbj->pos_lat_deg);
+    tokens[19].toCharArray(lbj->pos_lat_min, sizeof lbj->pos_lat_min);
 
     // sprintf(buffer, "%.2f,%.2f,%.2f", rx.rssi, rx.fer, rx.ppm);
-    rx->rssi = std::stof(tokens[24].c_str());
-    rx->fer = std::stof(tokens[25].c_str());
-    rx->ppm = std::stof(tokens[26].c_str());
+    rx->rssi = std::stof(tokens[20].c_str());
+    rx->fer = std::stof(tokens[21].c_str());
+    rx->ppm = std::stof(tokens[22].c_str());
     return true;
 }
 

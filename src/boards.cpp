@@ -38,7 +38,7 @@ void initBoard() {
 
     SPI.begin(RADIO_SCLK_PIN, RADIO_MISO_PIN, RADIO_MOSI_PIN);
 
-    Wire.begin(I2C_SDA, I2C_SCL, 400000);
+    Wire.begin(I2C_SDA, I2C_SCL);
 
 #ifdef HAS_AD_BUTTON
     pinMode(BUTTON_PIN, INPUT);
@@ -85,7 +85,7 @@ void initBoard() {
     }
     if (1 || ret == 0) { // MODIFY force to begin u8g2
         Serial.println("[BOARD]Started OLED");
-        u8g2 = new DISPLAY_MODEL(U8G2_R0, U8X8_PIN_NONE); // U8G2_R0  U8G2_R2  // U8G2_MIRROR U8G2_MIRROR_VERTICAL 1312
+        u8g2 = new DISPLAY_MODEL(U8G2_R0, U8X8_PIN_NONE); // U8G2_R0  U8G2_R2  // U8G2_MIRROR_VERTICAL U8G2_MIRROR 1312
         u8g2->begin();
         u8g2->clearBuffer();
         u8g2->setFlipMode(0);
@@ -162,7 +162,7 @@ void initBoard() {
                 u8g2->println(" GB");
             } while (u8g2->nextPage());
         }
-        Serial.printf("[BOARD]setupSDCard PASS. SIZE = %d GB\n", cardSize / (1024 * 1024) / 1024.0);
+        Serial.printf("[BOARD]setupSDCard PASS. SIZE = %.2f GB\n", cardSize / (1024 * 1024) / 1024.0);
     }
     if (u8g2) {
         u8g2->sendBuffer();

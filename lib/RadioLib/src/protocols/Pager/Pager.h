@@ -67,16 +67,19 @@ public:
     */
     explicit PagerClient(PhysicalLayer *phy);
 
-    struct pocsag_data {
-        String str = {};
-        uint8_t *data = nullptr;
-        size_t len = 0;
-        uint32_t addr = 0;
-        uint32_t func = 5;
-        uint16_t errs_total = 0;
-        uint16_t errs_uncorrected = 0;
-        String epi = {};
-        bool is_empty = true;
+    struct poc32 {
+        uint32_t origin_bin[16] = {0};
+        uint32_t correct_bin[16] = {0};
+        // uint32_t error_bin[16] = {0};
+        uint8_t ebit[16] = {0};
+        size_t word_idx = 0;
+
+        uint32_t address = 0;
+        uint8_t function_code = 0;
+        char text[84] = {'\0'};
+
+        uint8_t EbitEven(size_t st, size_t ed) const;
+        uint8_t Ebit(size_t st, size_t ed) const;
     };
 
     // basic methods
@@ -174,13 +177,6 @@ public:
     */
     int16_t readData(String &str, size_t len = 0, uint32_t *addr = NULL);
 
-    int16_t readDataMod(String &str, size_t len = 0, uint32_t *addr = NULL, uint32_t *func = NULL, bool *add = NULL,
-                        size_t *clen = NULL);
-
-    int16_t readDataMS(struct PagerClient::pocsag_data *p, size_t len);
-
-    int16_t readDataMSA(struct PagerClient::pocsag_data *p, size_t len);
-
 #endif
 
     /*!
@@ -195,14 +191,7 @@ public:
     */
     int16_t readData(uint8_t *data, size_t *len, uint32_t *addr = NULL);
 
-    int16_t readDataM(uint8_t *data, size_t *len, uint32_t *addr = NULL, uint32_t *func = NULL, bool *add = NULL,
-                      size_t *clen = NULL);
-
-    int16_t readDataMA(uint8_t *data, size_t *len, uint32_t *addr, uint32_t *func, uint8_t *framePos,
-                       uint32_t *addr_next, bool *is_empty, bool *complete, uint16_t *errs_total,
-                       uint16_t *errs_uncorrected, String *epi);
-
-    int16_t readDataS(struct PagerClient::pocsag_data *p);
+    int16_t readDataAll(struct PagerClient::poc32 &p, size_t len);
 
 #endif
 
