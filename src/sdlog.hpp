@@ -57,6 +57,8 @@ public:
 
     void appendBufferCSV(const char *format, ...);
 
+    void addBufferCSV(const char* buffer);
+
     void sendBufferCSV();
 
     void printTel(unsigned int chars, ESPTelnet &tel);
@@ -84,7 +86,7 @@ private:
 
     void writeHeaderCSV();
 
-    int createIndex(File cwd, const String& index_path);
+    int countFile(File cwd);
 
     int readIndex(const File& cwd);
 
@@ -107,10 +109,8 @@ private:
     bool sd_cd;
 //    bool have_sd = false;
 //    bool haveNTP = false;
-    bool is_newfile; // = false
     bool is_startline; // = true
     bool size_checked;
-    bool is_newfile_csv;
     bool is_startline_csv;
     const char *log_directory;
     const char *csv_directory;

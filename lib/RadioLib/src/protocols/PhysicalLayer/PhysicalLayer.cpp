@@ -344,6 +344,16 @@ int16_t PhysicalLayer::setDirectSyncWord(uint32_t syncWord, uint8_t len) {
   return(RADIOLIB_ERR_NONE);
 }
 
+__inline int bin_cnt(uint32_t m) { // MODIFY ADD
+  int ret = 0;
+  uint32_t x = m;
+  while (x) {
+      x &= x - 1;
+      ret += 1;
+  }
+  return ret;
+}
+
 void PhysicalLayer::updateDirectBuffer(uint8_t bit) {
   // check carrier
   if(!this->gotCarrier && !this->gotPreamble && !this->gotSync) {
@@ -373,7 +383,7 @@ void PhysicalLayer::updateDirectBuffer(uint8_t bit) {
 
     RADIOLIB_VERBOSE_PRINTLN("S\t%lu", this->syncBuffer);
 
-    if((this->syncBuffer & this->directSyncWordMask) == this->directSyncWord) {
+    if(bin_cnt((this->syncBuffer & this->directSyncWordMask) ^ this->directSyncWord) <= 2) { //MODIFY ADD
       this->gotSync = true;
       this->bufferWritePos = 0;
       this->bufferReadPos = 0;

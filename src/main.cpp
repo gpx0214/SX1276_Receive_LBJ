@@ -32,6 +32,7 @@
 // include libraries
 #include <RadioLib.h>
 #include "coredump.h"
+#include "BCH.hpp"
 
 // #include <esp_task_wdt.h>
 // #include "ScreenWrapper.h"
@@ -42,11 +43,13 @@
 
 #define WDT_TIMEOUT 20 // sec
 // #define WDT_RST_PERIOD 4000 // ms
-#define FD_TASK_STACK_SIZE 5000 // 68200
+#define FD_TASK_STACK_SIZE 3000 // 5000 // 68200
 #define FD_TASK_TIMEOUT 750 // ms
 #define FD_TASK_ATTEMPTS 3
 #define LED_ON_TIME 200 // ms
 //region Variables
+// StackType_t statictask_stack[FD_TASK_STACK_SIZE];
+// StaticTask_t statictask_tcb;
 SX1276 radio = new Module(RADIO_CS_PIN, RADIO_DIO0_PIN, RADIO_RST_PIN, RADIO_DIO1_PIN);
 // receiving packets requires connection
 // to the module direct output pin
@@ -98,9 +101,11 @@ SD_LOG sd1;
 aPreferences flash;
 Menu oled;
 struct rx_info rxInfo;
-struct data_bond *db = nullptr;
+struct data_bond *db = new data_bond; // MODIFY
 bool always_new = true;
-// PagerClient::pocsag_data *pd = nullptr;
+// PagerClient::poc32 &pd = nullptr;
+
+uint32_t start_cnt = 0;
 //endregion
 
 //region Functions
@@ -173,86 +178,57 @@ void dualPrintln(const char *fmt) {
     telnet.println(fmt);
 }
 
-String printResetReason(esp_reset_reason_t reset) {
-    String str;
-    switch (reset) {
-        case ESP_RST_UNKNOWN:
-            str = "ESP_RST_UNKNOWN, Reset reason can not be determined";
-            break;
-        case ESP_RST_POWERON:
-            str = "ESP_RST_POWERON, Reset due to power-on event";
-            break;
-        case ESP_RST_EXT:
-            str = "ESP_RST_EXT, Reset by external pin (not applicable for ESP32)";
-            break;
-        case ESP_RST_SW:
-            str = "ESP_RST_SW, Software reset via esp_restart";
-            break;
-        case ESP_RST_PANIC:
-            str = "ESP_RST_PANIC, Software reset due to exception/panic";
-            break;
-        case ESP_RST_INT_WDT:
-            str = "ESP_RST_INT_WDT, Reset (software or hardware) due to interrupt watchdog";
-            break;
-        case ESP_RST_TASK_WDT:
-            str = "ESP_RST_TASK_WDT, Reset due to task watchdog";
-            break;
-        case ESP_RST_WDT:
-            str = "ESP_RST_WDT, Reset due to other watchdogs";
-            break;
-        case ESP_RST_DEEPSLEEP:
-            str = "ESP_RST_DEEPSLEEP, Reset after exiting deep sleep mode";
-            break;
-        case ESP_RST_BROWNOUT:
-            str = "ESP_RST_BROWNOUT, Brownout reset (software or hardware)";
-            break;
-        case ESP_RST_SDIO:
-            str = "ESP_RST_SDIO, Reset over SDIO";
-            break;
+// void LBJTEST() {
+//     PagerClient::pocsag_data pocdat[16];
+//     pocdat[0].str = "37012";
+//     pocdat[0].address = 1234000;
+//     pocdat[0].function_code = 1;
+//     pocdat[0].is_empty = false;
+//     pocdat[0].len = 15;
+//     pocdat[1].str = "30479100018530U)*9UU*6 (-(202011719040139058291000";
+//     pocdat[1].address = 1234002;
+//     pocdat[1].function_code = 1;
+//     pocdat[1].is_empty = false;
+//     pocdat[1].len = 0;
+// //    Serial.println("[LBJ] 测试输出 机车编号 位置 XX°XX′XX″ ");
+// //    dualPrintf(false,"[LBJ] 测试输出 机车编号 位置 XX°XX′XX″ \n");
+//     struct lbj_data lbj;
+
+//     // db = new data_bond;
+//     // db->poc32[0].address = 1234000;
+//     // db->poc32[0].str = "37012  15  1504";
+//     // db->poc32[0].function_code = 1;
+//     // db->poc32[0].is_empty = false;
+//     // db->poc32[0].len = 15;
+//     // db->poc32[1].str = "20202350018530U)*9UU*6 (-(202011719040139058291000";
+//     // db->poc32[1].address = 1234002;
+//     // db->poc32[1].function_code = 1;
+//     // db->poc32[1].is_empty = false;
+//     // db->poc32[1].len = 0;
+//     readDataLBJ(pocdat, &lbj);
+//     printDataSerial(pocdat, lbj, rxInfo);
+//     // // appendDataLog(pocdat, lbj, rxInfo);
+//     // // printDataTelnet(pocdat, lbj, rxInfo);
+//     // simpleFormatTask();
+//     // rxInfo.rssi = 0;
+//     // rxInfo.fer = 0;
+//     // delete db;
+// }
+
+void RadioReg() {
+    for (uint8_t i=0; i < 0x73; i++) {
+        if (i % 16 == 0) {
+            Serial.printf("\n[SX1276]reg %02X: ", i);
+        }
+        uint8_t v = radio.getMod()->SPIreadRegister(i);
+        Serial.printf("%02X ", v);
     }
-    return str;
-}
-
-void LBJTEST() {
-    PagerClient::pocsag_data pocdat[16];
-    pocdat[0].str = "37012";
-    pocdat[0].addr = 1234000;
-    pocdat[0].func = 1;
-    pocdat[0].is_empty = false;
-    pocdat[0].len = 15;
-    pocdat[1].str = "30479100018530U)*9UU*6 (-(202011719040139058291000";
-    pocdat[1].addr = 1234002;
-    pocdat[1].func = 1;
-    pocdat[1].is_empty = false;
-    pocdat[1].len = 0;
-//    Serial.println("[LBJ] 测试输出 机车编号 位置 XX°XX′XX″ ");
-//    dualPrintf(false,"[LBJ] 测试输出 机车编号 位置 XX°XX′XX″ \n");
-    struct lbj_data lbj;
-
-    // db = new data_bond;
-    // db->pocsagData[0].addr = 1234000;
-    // db->pocsagData[0].str = "37012  15  1504";
-    // db->pocsagData[0].func = 1;
-    // db->pocsagData[0].is_empty = false;
-    // db->pocsagData[0].len = 15;
-    // db->pocsagData[1].str = "20202350018530U)*9UU*6 (-(202011719040139058291000";
-    // db->pocsagData[1].addr = 1234002;
-    // db->pocsagData[1].func = 1;
-    // db->pocsagData[1].is_empty = false;
-    // db->pocsagData[1].len = 0;
-    readDataLBJ(pocdat, &lbj);
-    printDataSerial(pocdat, lbj, rxInfo);
-    // // appendDataLog(pocdat, lbj, rxInfo);
-    // // printDataTelnet(pocdat, lbj, rxInfo);
-    // simpleFormatTask();
-    // rxInfo.rssi = 0;
-    // rxInfo.fer = 0;
-    // delete db;
 }
 
 int initPager() {// initialize SX1276 with default settings
+    bch_err_map_init();
 
-    int state = radio.beginFSK(434.0, 4.8, 5.0, 12.5);
+    int state = radio.beginFSK(821.2375, 1.2, 4.5, 12.5);
     RADIOLIB_ASSERT(state)
 
     state = radio.setGain(1);
@@ -279,6 +255,8 @@ int initPager() {// initialize SX1276 with default settings
     // state = radio.setFrequency(actual_freq);
     // RADIOLIB_ASSERT(state)
 
+    // RadioReg();
+
     return (state);
 }
 //endregion
@@ -289,32 +267,49 @@ void setup() {
     runtime_timer = millis64();
     esp_reset_reason_t reset_reason = esp_reset_reason();
     initBoard();
+    if (u8g2) {
+        u8g2->setFont(FONT_12_GB2312);
+        u8g2->drawUTF8(80, 8, printResetReason(reset_reason)+8);
+        u8g2->updateDisplayArea(10, 0, 6, 1);
+    }
     sd1.setFS(SD);
     delay(150);
 
     // Configure time sync.
     sntp_set_time_sync_notification_cb(timeAvailable);
     sntp_servermode_dhcp(1);
+    // configTime(gmtOffset_sec, daylightOffset_sec, ntpServer1, ntpServer2);
     configTzTime(time_zone, ntpServer1, ntpServer2);
+
+    // flash.setIO(SPIFFS, Serial);
+    flash.begin("cache", false);
+    start_cnt = flash.incStartTime();
+
+    // SPIFFS.format();
+    // flash.setIndexPath("/","index.bin");
+    // flash.usePath("/", "CACHE", false);
+    // flash.listDir("/");
 
 #ifdef HAS_RTC
     // rtc.begin();
     // rtc.getDateTime(time_info);
     if (have_rtc) {
         time_info = rtcLibtoC(rtc.now());
-        Serial.println(&time_info, "[eRTC] RTC Time %Y-%m-%d %H:%M:%S ");
+        Serial.print(&time_info, "[eRTC] RTC Time %Y-%m-%d %H:%M:%S ");
         timeSync(time_info); // sync system time from rtc
         Serial.printf("SYS Time %s\n", fmtime(time_info));
+        oled.drawTime();
+        last_hour = time_info.tm_hour;
     }
 #endif
 
-    Serial.printf("RST: %s\n", printResetReason(reset_reason).c_str());
+    Serial.printf("cnt %d RST: %s\n", start_cnt, printResetReason(reset_reason));
     if (have_sd) {
         sd1.begin("/LOGTEST");
         sd1.beginCSV("/CSVTEST");
         sd1.append("电池电压 %1.2fV\n", battery.readVoltage() * 2);
         sd1.append(2, "调试等级 %d\n", LOG_VERBOSITY);
-        sd1.append("复位原因 %s\n", printResetReason(reset_reason).c_str());
+        sd1.append("复位原因 %s\n", printResetReason(reset_reason));
 #ifdef HAS_RTC
         if (have_rtc) {
             sd1.append("RTC时间 %d-%02d-%02d %02d:%02d:%02d\n", time_info.tm_year + 1900, time_info.tm_mon + 1,
@@ -323,40 +318,24 @@ void setup() {
 #endif
     }
 
-    // flash.setIO(SPIFFS, Serial);
-    flash.begin("cache", false);
-
-    // SPIFFS.format();
-    // flash.setIndexPath("/","index.bin");
-    // flash.usePath("/", "CACHE", false);
-    // flash.listDir("/");
-
     // Process core dump.
     readCoreDump();
 
     if (u8g2) {
         oled.setDisplay(u8g2);
         oled.setFlash(&flash);
-        oled.showInitComp();
         u8g2->setFont(FONT_12_GB2312);
         u8g2->setCursor(0, 52);
         u8g2->println("正在初始化...");
-        u8g2->sendBuffer();
+        oled.showInitComp();
     }
 
     // initialize wireless network.
     Serial.printf("Connecting to %s ", WIFI_SSID);
     connectWiFi(WIFI_SSID, WIFI_PASSWORD, 1); // usually max_tries = 25.
     if (isConnected()) {
-        ip = WiFi.localIP();
-        Serial.println();
-        Serial.print("[Telnet] ");
-        Serial.print(ip);
-        Serial.print(":");
-        Serial.println(port);
         setupTelnet(); // todo: find another library / modify the code to support multiple client connection.
     } else {
-        Serial.println();
         Serial.println("Error connecting to WiFi, Telnet startup skipped.");
     }
 
@@ -381,11 +360,12 @@ void setup() {
     // wdt_timer = millis64();
 
     digitalWrite(BOARD_LED, LED_OFF);
-    Serial.printf("Booting time %llu ms\n", millis64() - runtime_timer);
+    Serial.printf("Booting time %llu ms ", millis64() - runtime_timer);
     sd1.append("启动用时 %llu ms\n", millis64() - runtime_timer);
+    oled.drawColorUTF8f(0, 45, 0, "%1.3fV Boot %llums\n", battery.readVoltage() * 2, millis64() - runtime_timer);
     runtime_timer = 0;
 
-    oled.showListening();
+    oled.updateInfo();
 
     Serial.printf("Mem left: %d Bytes\n", esp_get_free_heap_size());
 
@@ -445,7 +425,9 @@ void handleSync() {
             // rxInfo.rssi += rssi;
             rssi_cache += rssi;
             rxInfo.cnt++;
-            Serial.printf("[D] RXI %.2f\n", rssi_cache / (float) rxInfo.cnt);
+            if (rxInfo.cnt == 5) {
+                Serial.printf("[D] RXI %.1f ", rssi_cache / (float) rxInfo.cnt);
+            }
         }
         if (rxInfo.fer == 0)
             rxInfo.fer = radio.getFrequencyError();
@@ -455,12 +437,6 @@ void handleSync() {
 
 void handleTelnet() {
     if (isConnected() && !telnet_online) {
-        ip = WiFi.localIP();
-        Serial.printf("WIFI Connection to %s established.\n", WIFI_SSID);
-        Serial.print("[Telnet] ");
-        Serial.print(ip);
-        Serial.print(":");
-        Serial.println(port);
         setupTelnet();
     }
     telnet.loop();
@@ -483,8 +459,9 @@ void checkNetwork() {
 
     if (ip_last != WiFi.localIP()) {
         Serial.print("Local IP ");
-        Serial.print(WiFi.localIP());
+        Serial.print(WiFi.localIP().toString());
         Serial.print("\n");
+        oled.drawIP();
     }
     ip_last = WiFi.localIP();
 }
@@ -518,7 +495,7 @@ void loop() {
         revertFrequency();
         car_fer_last = 0;
         car_timer = 0;
-        Serial.println("[D] CARRIER TIMEOUT.");
+        Serial.printf("[D] CARRIER TIMEOUT.");
     }
 
     // Handle preamble timeout.
@@ -529,7 +506,9 @@ void loop() {
             i = 0;
         }
         prb_timer = 0;
-        Serial.println("[D] PREAMBLE TIMEOUT.");
+        Serial.printf("[D] PREAMBLE TIMEOUT.");
+        oled.showSTR("PREAMBLE");
+        screen_timer = millis64();
     }
 
     // if task complete, de-initialize
@@ -557,7 +536,7 @@ void loop() {
     }
 
     if (millis64() - led_timer > LED_ON_TIME && led_timer != 0 && fd_state == TASK_INIT) {
-        analogWrite(BOARD_LED, LED_OFF);
+        // analogWrite(BOARD_LED, LED_OFF);
         led_timer = 0;
         changeCpuFreq(240);
     }
@@ -566,6 +545,22 @@ void loop() {
     checkNetwork();
     handleTelnet();
     handleTelnetCall();
+
+    getLocalTime(&time_info, 0);
+    if (time_info.tm_year + 1900 > 2001 && time_info.tm_hour != last_hour) {
+        Serial.printf("[hour]change %s\n", fmtime(time_info));
+        if (have_sd) {
+            sd1.end();
+            SD_LOG::reopenSD();
+            sd1.begin("/LOGTEST");
+            sd1.beginCSV("/CSVTEST");
+        }
+        last_hour = time_info.tm_hour;
+        // TODO flash写一下
+        oled.drawTime();
+        // oled.updateInfo();
+        screen_timer = millis64();
+    }
 
     if (millis64() > 60000 && format_task_timer == 0 &&
         !exec_init_f80) // lower down frequency 60 sec after startup and idle.
@@ -584,7 +579,7 @@ void loop() {
     // update information on screen.
     if (screen_timer == 0) {
         screen_timer = millis64();
-    } else if (millis64() - screen_timer > 3000) { // Set to 3000 to reduce interference.
+    } else if (millis64() - screen_timer > 6000) { // Set to 3000 to reduce interference.
         oled.updateInfo();
         screen_timer = millis64();
     }
@@ -617,7 +612,7 @@ void loop() {
         sd1.append("[Pager] FD_TASK Timeout.\n");
         initFmtVars();
         Serial.printf("LED LOW [%llu]\n", millis64() - format_task_timer);
-        analogWrite(BOARD_LED, LED_OFF);
+        // analogWrite(BOARD_LED, LED_OFF);
         format_task_timer = 0;
         led_timer = 0;
         changeCpuFreq(240);
@@ -652,15 +647,26 @@ void loop() {
 
     handleSync();
 
+    if (pager.gotPreambleState() || pager.gotSyncState()) {
+        // digitalWrite(BOARD_LED, LED_ON);
+        analogWrite(BOARD_LED, LED_ON_ANALOG);
+    } else {
+        analogWrite(BOARD_LED, LED_OFF);
+    }
+
     // the number of batches to wait for
     // 2 batches will usually be enough to fit short and medium messages
     if (pager.available() >= 2 && fd_state == TASK_INIT) { // todo add session timeout exception to prevent stuck here.
+        if (pager.available() > 2) { // MODIFY ADD
+            Serial.printf("[PHY-LAYER][D] AVAILABLE %d\n", pager.available());
+        }
         // Serial.println("[PHY-LAYER][D] AVAILABLE > 2.");
         setCpuFrequencyMhz(240);
-        db = new data_bond;
+        memset(db, 0, sizeof(*db)); // db = new data_bond; // MODIFY
         runtime_timer = millis64();
         timer4 = millis64();
-        int state = pager.readDataMSA(db->pocsagData, 0);
+        now_time_str(rxInfo.date_time_str);
+        int state = pager.readDataAll(db->poc32, 0);
 //        sd1.append("[PHY-LAYER][D] AVAILABLE > 2.\n");
         rxInfo.rssi = rssi_cache / (float) rxInfo.cnt;
         rssi_cache = 0;
@@ -673,28 +679,23 @@ void loop() {
 
 //        Serial.printf("CPU FREQ TO %d MHz\n",ets_get_cpu_frequency());
 
-        // PagerClient::pocsag_data pocdat[POCDAT_SIZE];
-        // struct lbj_data lbj;
-        // pd = new PagerClient::pocsag_data[POCDAT_SIZE];
-
-        Serial.printf("[D] Prb_count %d\n", prb_count);
-        Serial.printf("[D] Car_count %d\n", car_count);
+        Serial.printf("[D]Car*%d Prb*%d", car_count, prb_count);
         if (prb_count >= 32)
             prb_count = 31;
         if (prb_count > 0)
             rxInfo.fer = fers[prb_count - 1];
+        Serial.printf(" Fer/Hz:");
         for (int i = 0; i < prb_count; ++i) {
-            Serial.printf("[D] Fer %.2f Hz\n", fers[i]);
+            Serial.printf("%5.0f", fers[i]);
             fers[i] = 0;
         }
-        // Serial.printf("[D] Fer %.2f Hz\n", fer);
-        // fer = 0;
+        Serial.printf("\n");
         prb_count = 0;
         car_count = 0;
         car_fer_last = 0;
         rxInfo.ppm = getBias(actual_frequency);
 
-        Serial.println(F("[Pager] Received pager data, decoding ... "));
+        // Serial.println(F("[Pager] Received pager data, decoding ... "));
         sd1.append(2, "正在解码信号...\n");
 
         // you can read the data as an Arduino String
@@ -703,7 +704,7 @@ void loop() {
         if (state == RADIOLIB_ERR_NONE) {
             freq_last = actual_frequency;
 //            Serial.printf("success.\n");
-            analogWrite(BOARD_LED, 255);
+//            analogWrite(BOARD_LED, 255); // MODIFY
             format_task_timer = millis64();
             led_timer = millis64();
             if (!first_rx)
@@ -711,50 +712,47 @@ void loop() {
 
             sd1.append(2, "正在格式化输出...\n");
             // formatDataTask();
-            auto x_ret = xTaskCreatePinnedToCore(formatDataTask, "task_fd",
+            // task_fd = xTaskCreateStaticPinnedToCore(formatDataTask, "task_fd",
+            //                                      FD_TASK_STACK_SIZE, nullptr,
+            //                                      2, statictask_stack, &statictask_tcb, ARDUINO_RUNNING_CORE);
+            // fd_state = TASK_CREATED;
+            // delay(1);
+
+            int x_ret = 0;
+            for (int i = 0; i < FD_TASK_ATTEMPTS; ++i) {
+                x_ret = xTaskCreatePinnedToCore(formatDataTask, "task_fd",
                                                  FD_TASK_STACK_SIZE, nullptr,
                                                  2, &task_fd, ARDUINO_RUNNING_CORE);
-            if (x_ret == pdPASS) {
-                fd_state = TASK_CREATED;
-                delay(1);
-            } else if (x_ret == errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY) {
-                int x_ret1;
-                for (int i = 0; i < FD_TASK_ATTEMPTS; ++i) {
-                    x_ret1 = xTaskCreatePinnedToCore(formatDataTask, "task_fd",
-                                                     FD_TASK_STACK_SIZE, nullptr,
-                                                     2, &task_fd, ARDUINO_RUNNING_CORE);
-                    if (x_ret1 == pdPASS) {
-                        fd_state = TASK_CREATED;
-                        delay(1);
-                        break;
-                    }
-                    Serial.printf("[Pager] FTask failed memory allocation, error %d, mem left %d B, retry %d\n",
-                                  x_ret1, esp_get_free_heap_size(), i);
-                    sd1.append("[Pager] FTask failed memory allocation, error %d, mem left %d B, retry %d\n",
-                               x_ret1, esp_get_free_heap_size(), i);
+                if (x_ret == pdPASS) {
+                    fd_state = TASK_CREATED;
+                    delay(1);
+                    break;
                 }
-                if (x_ret1 != pdPASS) {
-                    Serial.printf("Mem left: %d Bytes\n", esp_get_free_heap_size());
-                    dualPrintf(true, "[Pager] Format task memory allocation failure\n");
-                    sd1.append("[Pager] Format task memory allocation failure, Mem left %d Bytes\n",
-                               esp_get_free_heap_size());
+                if (x_ret != errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY) {
+                    dualPrintf(true, "[Pager] Failed to create format task, errcode %d\n", x_ret);
+                    sd1.append("[Pager] Failed to create format task, errcode %d\n", x_ret);
+                    fd_state = TASK_CREATE_FAILED;
+                    // analogWrite(BOARD_LED, LED_OFF);
+                }
+                Serial.printf("[Pager] FTask failed memory allocation, error %d, mem left %d B, retry %d\n",
+                              x_ret, esp_get_free_heap_size(), i);
+                sd1.append("[Pager] FTask failed memory allocation, error %d, mem left %d B, retry %d\n",
+                           x_ret, esp_get_free_heap_size(), i);
+            }
+            if (x_ret == errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY) {
                     fd_state = TASK_CREATE_FAILED;
                     simpleFormatTask();
-                    analogWrite(BOARD_LED, LED_OFF);
-                }
-            } else {
-                dualPrintf(true, "[Pager] Failed to create format task, errcode %d\n", x_ret);
-                sd1.append("[Pager] Failed to create format task, errcode %d\n", x_ret);
-                fd_state = TASK_CREATE_FAILED;
-                analogWrite(BOARD_LED, LED_OFF);
+                    // analogWrite(BOARD_LED, LED_OFF);
+                    esp_restart(); // MODIFY ADD
             }
-
         } else if (state == RADIOLIB_ERR_MSG_CORRUPT) {
 //            Serial.printf("failed.\n");
 //            Serial.println("[Pager] Reception failed, too many errors.");
             dualPrintf(true, "[Pager] Reception failed, too many errors. \n");
             revertFrequency();
 //            sd1.append("[Pager] Reception failed, too many errors. \n");
+            oled.showSTR("CORRUPT");
+            // db->poc32.text;
         } else {
             // some error occurred
             sd1.append("[Pager] Reception failed, code %d \n", state);
@@ -773,20 +771,17 @@ void loop() {
 #ifdef HAS_AD_BUTTON
 
 void handleButtonInput() {
-    if (analogRead(BUTTON_PIN) >= 1300) {
+    if (analogRead(BUTTON_PIN) >= 550) { // 1300
         if (btn_timer == 0) {
             btn_timer = millis64();
         }
         if (millis64() - btn_timer <= 200 && !btn_pressed) {
             uint16_t btn_level_prev = analogRead(BUTTON_PIN);
-            // Serial.printf("[D] GPIO 34-1: %d ADU\n", btn_level);
             uint16_t btn_level = analogRead(BUTTON_PIN);
-            // Serial.printf("[D] GPIO 34-2: %d ADU\n", btn_level);
-            if (btn_level >= 1460 && btn_level <= 1490 && abs(btn_level - btn_level_prev) < 10) {
+            if (btn_level >= 580 && btn_level <= 660 && abs(btn_level - btn_level_prev) < 10) {
                 btn_pressed = true;
                 oled.updateSleepTimestamp();
-                Serial.printf("[D] GPIO 34: %d ADU", btn_level);
-                Serial.println(", KEY 1");
+                // Serial.printf("[D] GPIO 34: %d ADU, KEY %d\n", btn_level, 1);
                 if (!oled.isEnabled() || oled.isSleep())
                     return;
                 // if (oled.isSleep()) {
@@ -799,13 +794,32 @@ void handleButtonInput() {
                         always_new = false;
                     }
                     oled.openMenu();
-                } else
+                } else {
                     oled.closeMenu();
-            } else if (btn_level >= 2250 && btn_level <= 2280) {
+                    // oled.handleKey(KEY_LEFT);
+                }
+            } else if (btn_level >= 1350 && btn_level <= 1490 && abs(btn_level - btn_level_prev) < 10) { // 1460-1490
                 btn_pressed = true;
                 oled.updateSleepTimestamp();
-                Serial.printf("[D] GPIO 34: %d ADU", btn_level);
-                Serial.println(", KEY 2");
+                // Serial.printf("[D] GPIO 34: %d ADU, KEY %d\n", btn_level, 2);
+                if (!oled.isEnabled() || oled.isSleep())
+                    return;
+                // if (oled.isSleep()) {
+                //     oled.setSleep(false);
+                //     oled.updateInfo();
+                //     return;
+                // }
+                if (!oled.isMenu()) {
+                    flash.toLatest();
+                    oled.showSelectedLBJ(0);
+                    always_new = true;
+                } else {
+                    oled.handleKey(KEY_RIGHT);
+                }
+            } else if (btn_level >= 2100 && btn_level <= 2280) { // 2250-2280
+                btn_pressed = true;
+                oled.updateSleepTimestamp();
+                // Serial.printf("[D] GPIO 34: %d ADU, KEY %d\n", btn_level, 3);
                 if (!oled.isEnabled() || oled.isSleep())
                     return;
                 // if (oled.isSleep()) {
@@ -817,24 +831,12 @@ void handleButtonInput() {
                     always_new = false;
                     oled.showSelectedLBJ(-1);
                 } else {
-                    oled.handleKey(true);
+                    oled.handleKey(KEY_UP);
                 }
-                // lbj_data lbj;
-                // rx_info rx;
-                // String rx_time;
-                // uint16_t line;
-                // uint32_t id;
-                // float temp;
-                // // flash.retrieve(&lbj, &rx, true);
-                // always_new = false;
-                // if (flash.retrieve(&lbj, &rx, &rx_time, &line, &id, &temp, -1)) {
-                //     oled.showLBJ(lbj, rx, rx_time, line, id, temp);
-                // }
-            } else if (btn_level >= 2990 && btn_level <= 3110) {
+            } else if (btn_level >= 2900 && btn_level <= 3110) { // 2990-3110
                 btn_pressed = true;
                 oled.updateSleepTimestamp();
-                Serial.printf("[D] GPIO 34: %d ADU", btn_level);
-                Serial.println(", KEY 3");
+                // Serial.printf("[D] GPIO 34: %d ADU, KEY %d\n", btn_level, 4);
                 if (!oled.isEnabled() || oled.isSleep())
                     return;
                 // if (oled.isSleep()) {
@@ -846,13 +848,12 @@ void handleButtonInput() {
                     always_new = false;
                     oled.showSelectedLBJ(1);
                 } else {
-                    oled.handleKey(false);
+                    oled.handleKey(KEY_DOWN);
                 }
             } else if (btn_level >= 4090 && btn_level <= 4096) {
                 btn_pressed = true;
                 oled.updateSleepTimestamp();
-                Serial.printf("[D] GPIO 34: %d ADU", btn_level);
-                Serial.println(", KEY 4");
+                // Serial.printf("[D] GPIO 34: %d ADU, KEY %d\n", btn_level, 5);
                 if (!oled.isEnabled()) {
                     oled.setEnable(true);
                     oled.resumeUpdate();
@@ -869,14 +870,19 @@ void handleButtonInput() {
                         flash.toLatest();
                         oled.showSelectedLBJ(0);
                     } else {
-                        oled.showListening();
-                        flash.toLatest(0);
+                        flash.toLatest();
+                        oled.showSelectedLBJ(0);
+                        // oled.showListening();
+                        // flash.toLatest(0);
                     }
                     always_new = true;
                     oled.resumeUpdate();
                 } else {
                     oled.acknowledge();
                 }
+            } else {
+                // Serial.printf("[D] GPIO 34: %d ADU", btn_level);
+                // Serial.println(", KEY ?");
             }
             // delay(100);
         } else if (millis64() - btn_timer > 200) {
@@ -925,6 +931,7 @@ void handleCarrier() {
                     actual_frequency = target_freq;
                     Serial.printf("[D][C] Freq Altered %f MHz, FEI %.2f Hz, PPM %.2f\n", actual_frequency, fei,
                                   getBias(actual_frequency));
+                    oled.drawPPM(getBias(actual_frequency));
                 }
             }
             car_fer_last = fei;
@@ -976,6 +983,7 @@ void handlePreamble() {
                     actual_frequency = target_freq;
                     Serial.printf("[D][P] Freq Altered %f MHz, FEI %.2f Hz, PPM %.2f\n", actual_frequency,
                                   fers[prb_count - 1], getBias(actual_frequency));
+                    oled.drawPPM(getBias(actual_frequency));
                 }
             }
         }
@@ -1005,9 +1013,13 @@ void handleSerialInput() {
                 Serial.printf("Temp: %.2f °C\n", temp);
             }
 #endif
-        } else if (in == "time") {
+        } else if (in == "time" || in == "t") {
             getLocalTime(&time_info, 1);
-            Serial.printf("$ SYS Time %s, Up time %llu ms (%s)\n", fmtime(time_info), millis64(), fmtms(millis64()));
+            Serial.printf("$ SYS Time %s, %d Up time %llu.%03llus\nreset reason:%s\n", 
+                fmtime(time_info), 
+                start_cnt, millis64()/1000, millis64()%1000,
+                printResetReason(esp_reset_reason())
+            );
         } else if (in == "cd") {
             if (have_cd)
                 Serial.println("$ Core dump exported.");
@@ -1034,8 +1046,7 @@ void handleSerialInput() {
         } else if (in == "mem") {
             Serial.printf("$ Mem left: %d Bytes\n", esp_get_free_heap_size());
         } else if (in == "rst") {
-            esp_reset_reason_t reason = esp_reset_reason();
-            Serial.printf("$ RST: %s\n", printResetReason(reason).c_str());
+            Serial.printf("$ RST: %s\n", printResetReason(esp_reset_reason()));
         } else if (in == "ppm") {
             if (runtime_timer == 0 && !pager.gotSyncState()) {
                 ppm = 3;
@@ -1068,6 +1079,8 @@ void handleSerialInput() {
         } else if (in == "gain") {
             Serial.printf("$ RegLna(0x0C) = 0x%x/",radio.getGain());
             Serial.println(radio.getGain(), BIN);
+        } else if (in == "reg") {
+            RadioReg();
         } else if (in == "cpu") {
             xTaskCreatePinnedToCore(getCoreFreq, "get_freq", 2048, nullptr,
                                     1, nullptr, 0);
@@ -1082,20 +1095,12 @@ void handleSerialInput() {
             // String str;
             // flash.retrieveLine(172,&str);
             // Serial.println(str);
+            PagerClient::poc32 poc32;
             lbj_data lbj;
             rx_info rx;
-            flash.retrieve(&lbj, &rx, nullptr, nullptr, nullptr, nullptr, true);
-            // if (u8g2) {
-            //     if (lbj.type == 0)
-            //         showLBJ0(lbj, rx);
-            //     else if (lbj.type == 1) {
-            //         showLBJ1(lbj, rx);
-            //     } else if (lbj.type == 2) {
-            //         showLBJ2(lbj, rx);
-            //     }
-            // }
-            oled.showLBJ(lbj, rx);
-
+            uint32_t id;
+            flash.retrieve(&poc32, &lbj, &rx, &id, 0);
+            oled.showLBJ(poc32, lbj, rx);
         } else if (in == "flash stat") {
             flash.getStats();
         }
@@ -1103,7 +1108,7 @@ void handleSerialInput() {
 }
 
 void initFmtVars() {
-    Serial.printf("[Pager] Processing time %llu ms.\n", millis64() - runtime_timer);
+    Serial.printf("[Pager][%llu ms].\n", millis64() - runtime_timer);
     runtime_timer = 0;
     rxInfo.rssi = 0;
     rxInfo.fer = 0;
@@ -1112,60 +1117,18 @@ void initFmtVars() {
     // for (auto &i: fers) {
     //     i = 0;
     // }
-    if (db != nullptr) {
-        delete db;
-        db = nullptr;
-    }
+    // if (db != nullptr) {
+    //     delete db;
+    //     db = nullptr;
+    // }
+    memset(db, 0, sizeof(*db));
 }
 
 void formatDataTask(void *pVoid) {
     fd_state = TASK_RUNNING;
     // Serial.printf("[FD-Task] Stack High Mark Begin %u\n", uxTaskGetStackHighWaterMark(nullptr));
     sd1.append(2, "格式化任务已创建\n");
-    bool empty = true;
-    for (int i = 0; i < POCDAT_SIZE; i++) {
-        if (db->pocsagData[i].is_empty)
-            continue;
-        empty = false;
-        for (int j = 0; j < db->pocsagData[i].epi.length(); j += 2) {
-            String epi_cw = db->pocsagData[i].epi.substring(j, j + 2);
-            if (String(epi_cw[epi_cw.length() - 1]) == "a") {
-                if (j > 2) {
-                    if (!db->pocsagData[i + 1].is_empty) {
-                        String epi_next = db->pocsagData[i].epi.substring(j);
-                        db->pocsagData[i + 1].epi = epi_next + db->pocsagData[i + 1].epi;
-                        db->pocsagData[i].epi = db->pocsagData[i].epi.substring(0, j);
-                        break;
-                    } else if (i == 0 && j + 2 < db->pocsagData[i].epi.length()) {
-                        db->pocsagData[i].epi = db->pocsagData[i].epi.substring(j);
-                        break;
-                    }
-                }
-            }
-        }
-        Serial.printf("[D-pDATA] %d/%d: %s\n", db->pocsagData[i].addr, db->pocsagData[i].func,
-                      db->pocsagData[i].str.c_str());
-        // String epi_s;
-        // // [D-pDATA] 1234000/1: 50015  19 -----
-        // // [D-pDATA] EPIs: 1    0    0    0
-        // // [D-pDATA] EPI: 1a0m0m0m
-        // // [D-pDATA] 1234002/1: 20201670000630U)*9UU*6 (-(202011618444639511203000
-        // // [D-pDATA] EPI: 0a0m0m0m0m0m0m0m0m0m0m0i
-        // for (int j = 0; j < db->pocsagData[i].epi.length(); j+=2) {
-        //     epi_s += db->pocsagData[i].epi[j];
-        //     if (String(db->pocsagData[i].epi[j+1]) == "i") {
-        //         epi_s += "I   ";
-        //         break;
-        //     }
-        //     epi_s += "    ";
-        // }
-        // Serial.printf("[D-pDATA] EPIs: %s\n", epi_s.c_str());
-        Serial.printf("[D-pDATA] EPI: %s\n", db->pocsagData[i].epi.c_str());
-        sd1.append(2, "[D-pDATA] %d/%d: %s\n", db->pocsagData[i].addr, db->pocsagData[i].func,
-                   db->pocsagData[i].str.c_str());
-        db->str = db->str + "  " + db->pocsagData[i].str;
-    }
-    if (empty) {
+    if (db->poc32.word_idx == 0) {
         fd_state = TASK_DONE;
         task_fd = nullptr;
         vTaskDelete(nullptr);
@@ -1179,35 +1142,13 @@ void formatDataTask(void *pVoid) {
 #endif
 
     // Serial.printf("[FD-Task] Stack High Mark pDATA %u\n", uxTaskGetStackHighWaterMark(nullptr));
-    sd1.append(2, "原始数据输出完成，用时[%llu]\n", millis64() - runtime_timer);
-    Serial.printf("decode complete.[%llu]", millis64() - runtime_timer);
-    readDataLBJ(db->pocsagData, &db->lbjData);
+    // sd1.append(2, "原始数据输出完成，用时[%llu]\n", millis64() - runtime_timer);
+    // Serial.printf("decode[%llu]", millis64() - runtime_timer); // MODIFY
+    readDataLBJ(db->poc32, &db->lbjData);
     sd1.append(2, "LBJ读取完成，用时[%llu]\n", millis64() - runtime_timer);
-    Serial.printf("Read complete.[%llu]", millis64() - runtime_timer);
+    // Serial.printf("Read[%llu]", millis64() - runtime_timer); // MODIFY
     // Serial.printf("[FD-Task] Stack High Mark rLBJ %u\n", uxTaskGetStackHighWaterMark(nullptr));
-    Serial.printf("[D-LEPI][%s]", db->lbjData.epi.c_str());
-
-    printDataSerial(db->pocsagData, db->lbjData, rxInfo);
-    sd1.append(2, "串口输出完成，用时[%llu]\n", millis64() - runtime_timer);
-    Serial.printf("SPRINT complete.[%llu]", millis64() - runtime_timer);
-
-    flash.append(db->lbjData, rxInfo, battery.readVoltage() * 2, temp);
-    if (always_new)
-        flash.toLatest();
-
-    Serial.printf("flash append complete.[%llu]", millis64() - runtime_timer);
-
-    // sd1.disableSizeCheck();
-    appendDataLog(db->pocsagData, db->lbjData, rxInfo);
-    Serial.printf("sdprint complete.[%llu]", millis64() - runtime_timer);
-    appendDataCSV(db->pocsagData, db->lbjData, rxInfo);
-    Serial.printf("csvprint complete.[%llu]", millis64() - runtime_timer);
-    // sd1.enableSizeCheck();
-
-    printDataTelnet(db->pocsagData, db->lbjData, rxInfo);
-    Serial.printf("telprint complete.[%llu]", millis64() - runtime_timer);
-    // Serial.printf("[FD-Task] Stack High Mark TRI-OUT %u\n", uxTaskGetStackHighWaterMark(nullptr));
-// Serial.printf("type %d \n",lbj.type);
+    // Serial.printf("[D-LEPI][%s]", db->lbjData.epi.c_str());
 
 #ifdef HAS_DISPLAY
     fd_state = TASK_RUNNING_SCREEN;
@@ -1217,11 +1158,36 @@ void formatDataTask(void *pVoid) {
             oled.setSleep(false);
             oled.updateInfo();
         }
-        oled.showLBJ(db->lbjData, rxInfo);
-        Serial.printf("Complete u8g2 [%llu]\n", millis64() - runtime_timer);
+        oled.showLBJ(db->poc32, db->lbjData, rxInfo);
+        screen_timer = millis64(); // MODIFY ADD
+        // Serial.printf("u8g2[%llu]", millis64() - runtime_timer);
+    } else {
+        Serial.printf("u8g2null[%d]", u8g2 != nullptr);
     }
 #endif
-    Serial.printf("[FD-Task] Stack High Mark %u\n", uxTaskGetStackHighWaterMark(nullptr));
+
+    uint64_t u8g2time = millis64() - runtime_timer;
+    printDataSerial(db->poc32, db->lbjData, rxInfo);
+    sd1.append(2, "串口输出完成，用时[%llu]\n", millis64() - runtime_timer);
+    Serial.printf("u8g2[%llu]", u8g2time);
+    Serial.printf("TX[%llu]", millis64() - runtime_timer);
+
+    printDataTelnet(db->poc32, db->lbjData, rxInfo);
+    Serial.printf("telnet[%llu]", millis64() - runtime_timer);
+
+    flash.append(db->poc32, db->lbjData, rxInfo);
+    if (always_new)
+        flash.toLatest();
+    Serial.printf("flash[%llu]", millis64() - runtime_timer);
+
+    // sd1.disableSizeCheck();
+    appendDataCSV(db->poc32, db->lbjData, rxInfo);
+    Serial.printf("csv[%llu]", millis64() - runtime_timer);
+    // appendDataLog(db->poc32, db->lbjData, rxInfo);
+    // Serial.printf("sd[%llu]", millis64() - runtime_timer);
+    // sd1.enableSizeCheck();
+
+    Serial.printf("[FD-Task] Stack High Mark %u", uxTaskGetStackHighWaterMark(nullptr));
     sd1.append(2, "任务堆栈标 %u\n", uxTaskGetStackHighWaterMark(nullptr));
     // sd1.append("[FD-Task] Stack High Mark %u\n", uxTaskGetStackHighWaterMark(nullptr));
     sd1.append(2, "格式化输出任务完成，用时[%llu]\n", millis64() - runtime_timer);
@@ -1231,15 +1197,10 @@ void formatDataTask(void *pVoid) {
 }
 
 void simpleFormatTask() { // only output initially phrased data in case of memory shortage
-    for (auto &i: db->pocsagData) {
-        if (i.is_empty)
-            continue;
-        Serial.printf("[D-pDATA] %d/%d: %s\n", i.addr, i.func, i.str.c_str());
-        sd1.append("[D-pDATA] %d/%d: %s\n", i.addr, i.func, i.str.c_str());
-        // db->str = db->str + "  " + i.str;
-        db->str += String(i.addr) + "/" + String(i.func) + ":" + i.str + "\n ";
-    }
+    sd1.append("[PGR]%s\n", db->poc32.text);
     // pword(db->str.c_str(),20,50);
-    oled.showSTR(db->str);
+    readDataLBJ(db->poc32, &db->lbjData);
+    appendDataCSV(db->poc32, db->lbjData, rxInfo);
+    oled.showSTR(db->poc32.text+5);
 }
 // END OF FILE.
