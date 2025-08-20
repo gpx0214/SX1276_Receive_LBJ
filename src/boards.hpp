@@ -20,7 +20,16 @@
 #include <U8g2lib.h>
 
 #ifndef DISPLAY_MODEL
-#define DISPLAY_MODEL U8G2_SSD1306_128X64_NONAME_F_HW_I2C
+#define DISPLAY_MODEL U8G2_SSD1312_128X64_NONAME_F_HW_I2C 
+// U8G2_SSD1306_128X64_NONAME_F_HW_I2C
+// U8G2_SSD1312_128X64_NONAME_F_HW_I2C // 旋转时局部刷新顺序不对
+// U8G2_SH1107_128X128_F_HW_I2C
+// U8G2_SH1107_PIMORONI_128X128_F_HW_I2C
+// U8G2_SSD1327_EA_W128128_F_HW_I2C // 只有中间一块
+// U8G2_SSD1327_WS_128X128_F_HW_I2C // 旋转时局部刷新顺序不对
+// U8G2_SSD1327_WS_128X128_F_HW_I2C // 旋转时局部刷新顺序不对
+// U8G2_SSD1327_MIDAS_128X128_F_HW_I2C // 旋转时局部刷新顺序不对
+// U8G2_SSD1327_ZJY_128X128_F_HW_I2C // 旋转时局部刷新顺序不对
 #endif
 
 extern DISPLAY_MODEL *u8g2;
@@ -322,6 +331,7 @@ extern float voltage;
 extern SPIClass SDSPI;
 extern bool have_sd;
 extern bool have_rtc;
+extern uint64_t cardSize;
 
 void initBoard();
 

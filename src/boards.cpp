@@ -13,6 +13,7 @@ float voltage;
 SPIClass SDSPI(HSPI);
 bool have_sd = false;
 bool have_rtc = false;
+uint64_t cardSize = 0;
 
 #ifdef HAS_RTC
 RTC_DS3231 rtc;
@@ -24,18 +25,20 @@ uint64_t millis64() {
 
 void initBoard() {
     Serial.begin(115200);
-    Serial.println("initBoard");
+    Serial.println("[BOARD]initBoard");
     pinMode(ADC_PIN, INPUT);
     battery.attach(ADC_PIN);
     voltage = battery.readVoltage() * 2;
-    Serial.printf("Battery: %1.2f V\n", voltage);
+    Serial.printf("[BOARD]Battery: %1.2f V\n", voltage);
     if (voltage <= 2.8) {
+#ifdef HAS_BATTERY
         ESP.deepSleep(999999999 * 999999999U);
+#endif
     }
 
     SPI.begin(RADIO_SCLK_PIN, RADIO_MISO_PIN, RADIO_MOSI_PIN);
 
-    Wire.begin(I2C_SDA, I2C_SCL, 400000);
+    Wire.begin(I2C_SDA, I2C_SCL);
 
 #ifdef HAS_AD_BUTTON
     pinMode(BUTTON_PIN, INPUT);
@@ -76,9 +79,13 @@ void initBoard() {
 
 #ifdef HAS_DISPLAY
     Wire.beginTransmission(0x3C);
-    if (Wire.endTransmission() == 0) {
-        Serial.println("Started OLED");
-        u8g2 = new DISPLAY_MODEL(U8G2_R0, U8X8_PIN_NONE);
+    int ret = Wire.endTransmission();
+    if (ret) {
+        Serial.printf("[BOARD]Wire OLED error %d !!!\n", ret);
+    }
+    if (1 || ret == 0) { // MODIFY force to begin u8g2
+        Serial.println("[BOARD]Started OLED");
+        u8g2 = new DISPLAY_MODEL(U8G2_R0, U8X8_PIN_NONE); // U8G2_R0  U8G2_R2  // U8G2_MIRROR_VERTICAL U8G2_MIRROR 1312
         u8g2->begin();
         u8g2->clearBuffer();
         u8g2->setFlipMode(0);
@@ -88,11 +95,20 @@ void initBoard() {
         // u8g2->setContrast(255); // todo: add contrast settings.
         u8g2->enableUTF8Print();
         u8g2->firstPage();
+        char buffer[32];
         if (voltage < 3.10) {
             u8g2->setFont(FONT_12_GB2312);
-            u8g2->drawUTF8(24, 32, "低电压");
+            sprintf(buffer, "%1.3fV 低电压", voltage);
+            u8g2->drawUTF8(0, 8, buffer);
             u8g2->sendBuffer();
+#ifdef HAS_BATTERY
             ESP.deepSleep(999999999 * 999999999U);
+#endif
+        } else {
+            u8g2->setFont(u8g2_font_helvR08_tf);
+            sprintf(buffer, "%1.3fV", voltage);
+            u8g2->drawUTF8(0, 8, buffer);
+            u8g2->sendBuffer();
         }
         do {
 //            u8g2->setFont(u8g2_font_inb19_mr);
@@ -112,7 +128,7 @@ void initBoard() {
         u8g2->sendBuffer();
         u8g2->setFont(u8g2_font_fur11_tf);
 //        delay(1000);
-    }
+    } 
 #endif
 
 
@@ -127,7 +143,7 @@ void initBoard() {
 //    }
     if (!SD.begin(SDCARD_CS, SDSPI, 40000000)) {
 
-        Serial.println("setupSDCard FAIL");
+        Serial.println("[BOARD]setupSDCard FAIL");
         if (u8g2) {
             do {
                 u8g2->setCursor(0, 62);
@@ -137,19 +153,16 @@ void initBoard() {
 
     } else {
         have_sd = true;
-        uint32_t cardSize = SD.cardSize() / (1024 * 1024);
+        cardSize = SD.cardSize();
         if (u8g2) {
             do {
                 u8g2->setCursor(0, 62);
                 u8g2->print("SD卡容量:");
-                u8g2->print(cardSize / 1024.0);
+                u8g2->print(cardSize / (1024 * 1024) / 1024.0);
                 u8g2->println(" GB");
             } while (u8g2->nextPage());
         }
-
-        Serial.print("setupSDCard PASS . SIZE = ");
-        Serial.print(cardSize / 1024.0);
-        Serial.println(" GB");
+        Serial.printf("[BOARD]setupSDCard PASS. SIZE = %.2f GB\n", cardSize / (1024 * 1024) / 1024.0);
     }
     if (u8g2) {
         u8g2->sendBuffer();
@@ -180,4 +193,3 @@ void initBoard() {
 #endif
 
 }
-
