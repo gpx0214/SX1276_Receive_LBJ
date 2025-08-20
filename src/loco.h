@@ -87,7 +87,7 @@ static const char *locos[] = { // todo try not to use static, we are running out
         "",
         "",
         "",
-        "东风21",
+        "DF21", // 东风21
         "",
         "",
         "",
@@ -109,25 +109,25 @@ static const char *locos[] = { // todo try not to use static, we are running out
 
         // Diesel engine
         "",
-        "东风",
-        "东风2",
-        "东风3",
-        "东风4",
-        "东风4客",
-        "东风4C",
-        "东风5",
-        "东风5宽",
-        "东风6",
-        "东风7",
-        "东风8",
-        "东风9",
-        "东风10",
-        "东方红1",
-        "东方红2",
-        "东方红3",
-        "东方红5",
-        "北京",
-        "北京宽",
+        "DF", // 东风
+        "DF2", // 东风2
+        "DF3", // 东风3
+        "DF4", // 东风4
+        "DF4R", // 东风4客
+        "DF4C", // 东风4C
+        "DF5", // 东风5
+        "DF5R", // 东风5宽
+        "DF6", // 东风6
+        "DF7", // 东风7
+        "DF8", // 东风8
+        "DF9", // 东风9
+        "DF10", // 东风10
+        "DFH1", // 东方红1
+        "DFH2", // 东方红2
+        "DFH3", // 东方红3
+        "DFH5", // 东方红5
+        "BJ", // 北京
+        "BJR", // 北京宽
         "ND2",
         "ND3",
         "ND4",
@@ -135,38 +135,38 @@ static const char *locos[] = { // todo try not to use static, we are running out
         "NY5",
         "NY6",
         "NY7",
-        "轻油",
-        "东方红21",
-        "东风7B",
-        "东风5S",
-        "东风7C",
-        "东风7S",
-        "工矿1",
-        "工矿1F",
-        "东风4E",
-        "东风7D",
-        "工矿1A",
-        "东风11",
-        "天安",
-        "东风10F",
-        "东风4D",
-        "东风8B",
-        "东风12",
-        "东风7E",
+        "QY", // 轻油
+        "DFH21", // 东方红21
+        "DF7B", // 东风7B
+        "DF5S", // 东风5S
+        "DF7C", // 东风7C
+        "DF7S", // 东风7S
+        "GK1", // 工矿1
+        "GK1F", // 工矿1F
+        "DF4E", // 东风4E
+        "DF7D", // 东风7D
+        "GK1A", // 工矿1A
+        "DF11", // 东风11
+        "TA", // 天安
+        "DF10F", // 东风10F
+        "DF4D", // 东风4D
+        "DF8B", // 东风8B
+        "DF12", // 东风12
+        "DF7E", // 东风7E
         "NYJ1",
         "NZJ1",
         "NZJ2",
-        "东风4DJ",
-        "新曙光", // NDJ1
-        "神州", // NDJ2
-        "NJ2",
-        "东风7G",
+        "DF4DJ", // 东风4DJ
+        "NDJ1", // 新曙光
+        "NDJ2", // 神州
+        "NJ2", // GE机车
+        "DF7G", // 东风7G
         "NDJ3",
         "",
         "",
-        "",
+        "DF11Z", // 东风11Z
         "FXN3D",
-        "东风11G",
+        "DF11G", // 东风11G
         "",
         "HXN3",
         "HXN5",
@@ -214,28 +214,28 @@ static const char *locos[] = { // todo try not to use static, we are running out
         "8K",
         "6G",
         "6K",
-        "韶山1",
-        "韶山3",
-        "韶山4",
-        "韶山5",
-        "韶山6",
-        "韶山3B",
-        "韶山7",
-        "韶山8",
-        "韶山7B",
-        "韶山7C",
-        "韶山6B",
-        "韶山9",
-        "韶山7D",
+        "SS1",
+        "SS3",
+        "SS4",
+        "SS5",
+        "SS6",
+        "SS3B",
+        "SS7",
+        "SS8",
+        "SS7B",
+        "SS7C",
+        "SS6B",
+        "SS9",
+        "SS7D",
         "DJ熊猫",
-        "DJ1",
-        "DJ2",
-        "DJF",
-        "蓝箭动车",
-        "先锋号",
-        "韶山7E",
-        "韶山4G", // SSJ3??
-        "韶山3C",
+        "DJ1", // 西门子车
+        "DJ2", // 澳星AC4000
+        "DJF", // 中原之星
+        "DJJ1蓝箭动车",
+        "DJF先锋号",
+        "SS7E",
+        "SS4G", // SSJ3??
+        "SS3C",
         "",
         "天梭",
         // HXD
@@ -259,13 +259,13 @@ static const char *locos[] = { // todo try not to use static, we are running out
         "FXD3",
         "FXD1-J",
         "FXD3-J",
-        "KZ25TA", 
+        "KZ25TA",
         "",
         "KZ25TB",
         "HXD1D-J",
         "",// HXD3DJ?
         "FXD1H",
-        "",// FXD3H?
+        "FXD3H",
         "",
         "",
         "",
@@ -310,22 +310,22 @@ static const char *locos[] = { // todo try not to use static, we are running out
         "",
         "",
         "",
-        "雪域神州",
+        "雪域神舟",
         // EMU
         "CRH1",
         "CRH2",
         "CRH3",
         "",
         "CRH5",
-        "CRH380A",
-        "CRH380B",
-        "CRH380C",
-        "CRH380D",
+        "380A",
+        "380B",
+        "380C",
+        "380D",
         "CRH6A",
-        "CR400AF",
-        "CR400BF",
-        "CR300AF",
-        "CR300BF",
+        "400AF",
+        "400BF",
+        "300AF",
+        "300BF",
         "CRH2E",
         "CRH6F",
         "",
