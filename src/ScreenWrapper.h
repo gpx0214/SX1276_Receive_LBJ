@@ -7,10 +7,11 @@
 
 #include <cstdint>
 #include "networks.hpp"
+#include "LBJ.hpp"
 #include "customfont.h"
 #include "aPreferences.h"
 
-#define AUTO_SLEEP_TIMEOUT 60000
+#define AUTO_SLEEP_TIMEOUT 600000
 #define AUTO_SLEEP true
 #ifdef HAS_DISPLAY
 
@@ -36,15 +37,20 @@ public:
 
     void setFlash(aPreferences *flash_cls);
 
+    void drawIP();
+    void drawTemperature();
+    void drawCPUFrequency();
+    void drawBattery();
+    void drawPPM(float ppm);
+    void drawRSSI(float rssi);
+    void drawTime();
+    void drawStatus(bool have_sd, bool wifi_conected);
+
     void updateInfo();
 
     void showInitComp();
 
-    void showListening();
-
     void showSTR(const String &str);
-
-    void showLBJ(const struct lbj_data &l, const struct rx_info &r);
 
     void showLBJ0(const struct lbj_data &l, const struct rx_info &r);
 
@@ -52,8 +58,19 @@ public:
 
     void showLBJ2(const struct lbj_data &l, const struct rx_info &r);
 
-    void showLBJ(const struct lbj_data &l, const struct rx_info &r, const String &time_str, uint16_t lines,
-                 uint32_t id, float temp);
+    void drawColorUTF8(uint16_t x, uint16_t y, bool flag, const char* s);
+    void drawColorUTF8f(uint16_t x, uint16_t y, bool flag, const char* format, ...);
+
+    void showLBJ_V2(const PagerClient::poc32 &poc32, const struct lbj_data &l, const struct rx_info &r);
+
+    void showLBJ_V1(const PagerClient::poc32 &poc32, const struct lbj_data &l, const struct rx_info &r);
+
+    void showLBJ_time(const PagerClient::poc32 &poc32, const struct lbj_data &l, const struct rx_info &r);
+
+    void showLBJ(const PagerClient::poc32 &poc32, const struct lbj_data &l, const struct rx_info &r);
+
+    void showLBJ(const PagerClient::poc32 &poc32, const struct lbj_data &l, const struct rx_info &r, 
+        uint32_t id);
 
     void showSelectedLBJ(int8_t bias);
 
@@ -99,16 +116,6 @@ protected:
 
 private:
     void pword(const char *msg, int xloc, int yloc);
-
-    void drawEpi(int8_t error, uint16_t cx_prev, const String &str);
-
-    void drawEpi(int8_t type, int index, const String &epi, uint16_t cx_prev);
-
-    void directDrawEpi(int8_t error, uint16_t cx_prev, const String &str, int y_offset = 0, int xl = 0, int xr = 0);
-
-    int8_t getErrorCount(int index, const String &epi);
-
-    int8_t getU8CharLen(uint8_t ch);
 
     bool low_volt_warned = false;
     bool update_top = true;

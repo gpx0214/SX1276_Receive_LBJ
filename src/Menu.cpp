@@ -42,6 +42,14 @@ bool Menu::isMenu() const {
 void Menu::closeMenu() {
     if (!display)
         return;
+    if (menu_page == MENU_INDEX || menu_page == MENU_INDEX_INPUT) {
+        handleKey(KEY_LEFT);
+        return;
+    }
+    if (menu_page == MENU_FREQ_READ_PPM || menu_page == MENU_FREQ_PPM_SET) {
+        handleKey(KEY_LEFT);
+        return;
+    }
     if (menu_page > MENU_SETTINGS) {
         showLast();
         return;
@@ -50,8 +58,10 @@ void Menu::closeMenu() {
     update = true;
     display->setFont(u8g2_font_squeezed_b7_tr);
     updateInfo();
+    display->updateDisplayArea(0, 1, 16, 7);
     if (always_new) {
-        showListening(); // todo: add show listening while idle.
+        flash->toLatest();
+        showSelectedLBJ(0); // showListening(); // todo: add show listening while idle.
     } else
         showSelectedLBJ(0);
     // if (!first_rx) {
@@ -68,7 +78,7 @@ void Menu::closeMenu() {
     //     resumeUpdate();
 }
 
-void Menu::handleKey(bool up) {
+void Menu::handleKey(int8_t up) {
     if (!display)
         return;
     if (!is_menu)
@@ -79,9 +89,9 @@ void Menu::handleKey(bool up) {
         case MENU_CLOSED:
             break;
         case MENU_RX_INFO:
-            if (up)
+            if (up == KEY_UP)
                 sub_page--;
-            else
+            else if (up == KEY_DOWN)
                 sub_page++;
             if (sub_page < 1) {
                 menu_page = MENU_SETTINGS;
@@ -94,9 +104,9 @@ void Menu::handleKey(bool up) {
                 break;
             }
         case MENU_SETTINGS:
-            if (up)
+            if (up == KEY_UP)
                 selected_item--;
-            else
+            else if (up == KEY_DOWN)
                 selected_item++;
             if (selected_item < 0) {
                 sub_page--;
@@ -123,9 +133,9 @@ void Menu::handleKey(bool up) {
             highlightItem(selected_item);
             break;
         case MENU_ABOUT:
-            if (up)
+            if (up == KEY_UP)
                 sub_page--;
-            else
+            else if (up == KEY_DOWN)
                 sub_page++;
             if (sub_page < 1)
                 sub_page = 2;
@@ -134,9 +144,9 @@ void Menu::handleKey(bool up) {
             showAbout(sub_page);
             break;
         case MENU_FREQ:
-            if (up)
+            if (up == KEY_UP)
                 selected_item--;
-            else
+            else if (up == KEY_DOWN)
                 selected_item++;
             if (selected_item < 0) {
                 selected_item = 1;
@@ -148,10 +158,26 @@ void Menu::handleKey(bool up) {
             highlightItem(selected_item);
             break;
         case MENU_FREQ_READ_PPM:
-            if (up)
+            switch(up) {
+            case KEY_UP: 
+            case KEY_DOWN:
+                alterDigitPPM(selected_item, up);
+                confirmDigitAltPPM();
+                // drawDigitPPM(selected_item, false, true);
+                // highlightReadPPM(selected_item);
+                return;
+                break;
+            case KEY_LEFT:
+                if (selected_item == 0) {
+                    showLast();
+                    return;
+                }
                 selected_item--;
-            else
+                break;
+            case KEY_RIGHT:
                 selected_item++;
+                break;
+            }
             if (selected_item < 0) {
                 selected_item = 6;
             }
@@ -167,9 +193,9 @@ void Menu::handleKey(bool up) {
             alterDigitPPM(selected_item, up);
             break;
         case MENU_TF_SETTINGS:
-            if (up)
+            if (up == KEY_UP)
                 sub_page--;
-            else
+            else if (up == KEY_DOWN)
                 sub_page++;
             if (sub_page > 2)
                 sub_page = 1;
@@ -190,9 +216,9 @@ void Menu::handleKey(bool up) {
 
             break;
         case MENU_TF_CONFIRM:
-            if (up)
+            if (up == KEY_UP)
                 selected_item--;
-            else
+            else if (up == KEY_DOWN)
                 selected_item++;
             if (selected_item < 0) {
                 selected_item = 1;
@@ -217,10 +243,25 @@ void Menu::handleKey(bool up) {
             }
             break;
         case MENU_INDEX:
-            if (up)
+            switch(up) {
+            case KEY_UP: 
+            case KEY_DOWN:
+                alterDigitIndex(selected_item, up);
+                lines = std::stoi((items[0] + items[1] + items[2] + items[3]).c_str());
+                showIndexFile();
+                return;
+                break;
+            case KEY_LEFT:
+                if (selected_item == 0) {
+                    showLast();
+                    return;
+                }
                 selected_item--;
-            else
+                break;
+            case KEY_RIGHT:
                 selected_item++;
+                break;
+            }
             if (selected_item < 0) {
                 selected_item = 5;
             }
@@ -234,9 +275,9 @@ void Menu::handleKey(bool up) {
             alterDigitIndex(selected_item, up);
             break;
         case MENU_OLED:
-            if (up)
+            if (up == KEY_UP)
                 selected_item--;
-            else
+            else if (up == KEY_DOWN)
                 selected_item++;
             if (selected_item < 0) {
                 selected_item = 1;
@@ -385,25 +426,11 @@ void Menu::acknowledge() {
             }
             break;
         case MENU_FREQ_READ_PPM: {
-
-            if (selected_item < 5) {
-                //     display->drawBox(19 + selected_item * 16, 22, 14, 22);
-                //     display->setDrawColor(0);
-                //     display->drawStr(20 + selected_item * 16, 40, items[selected_item].c_str());
-                //     display->setDrawColor(1);
-                //     display->sendBuffer();
-                //     menu_page = MENU_FREQ_PPM_SET;
-                // } else if (selected_item < 5) {
-                //     display->drawBox(23 + selected_item * 16, 22, 14, 22);
-                //     display->setDrawColor(0);
-                //     display->drawStr(24 + selected_item * 16, 40, items[selected_item].c_str());
-                //     display->setDrawColor(1);
-                //     display->sendBuffer();
-                //     menu_page = MENU_FREQ_PPM_SET;
+            /*if (selected_item < 5) {
                 drawDigitPPM(selected_item, true, true);
                 menu_page = MENU_FREQ_PPM_SET;
-
-            } else if (selected_item == 5) {
+            } else */
+            if (selected_item < 5) {
                 // confirm
                 set_ppm = true;
                 ppm = (float) (bias * 0.01);
@@ -462,11 +489,14 @@ void Menu::acknowledge() {
             }
             break;
         case MENU_INDEX:
-            if (selected_item < 4) {
+            /*if (selected_item < 4) {
                 drawDigitIndex(selected_item, true, true);
                 menu_page = MENU_INDEX_INPUT;
-            } else if (selected_item == 4) {
+            } else */ 
+            if (selected_item <= 4) {
                 // acknowledge
+                if (lines > PREF_MAX_LINES-1)
+                lines = PREF_MAX_LINES-1;
                 flash->setRetLines(lines);
                 menu_page = MENU_RX_INFO;
                 closeMenu();
@@ -604,12 +634,12 @@ void Menu::showAbout(int16_t page) {
         }
         sprintf(buffer, "版本: %s", hash.substring(0, 16).c_str());
         display->drawUTF8(0, 50, buffer);
-        sprintf(buffer, "构建日期: %s", __DATE__);
+        sprintf(buffer, "%s %s", __DATE__,  __TIME__);
         display->drawUTF8(0, 62, buffer);
 
     } else if (page == 2) {
-        sprintf(buffer, "构建时间: %s", __TIME__);
-        display->drawUTF8(0, 26, buffer);
+        // sprintf(buffer, "构建时间: %s", __TIME__);
+        // display->drawUTF8(0, 26, buffer);
     }
 
     display->sendBuffer();
@@ -704,9 +734,19 @@ void Menu::highlightReadPPM(int8_t item) {
     display->sendBuffer();
 }
 
-void Menu::alterDigitPPM(int8_t item, bool plus) {
+void Menu::alterDigitPPM(int8_t item, int8_t plus) {
     display->setFont(u8g2_font_spleen12x24_mn);
     if (item == 0) {
+        if (plus == KEY_LEFT) {
+            selected_item--;
+            item--;
+            return;
+        }
+        if (plus == KEY_RIGHT) {
+            selected_item++;
+            item++;
+            return;
+        }
         if (items[item] == "+") {
             items[item] = "-";
         } else {
@@ -720,7 +760,24 @@ void Menu::alterDigitPPM(int8_t item, bool plus) {
         return;
     }
     int8_t digit = (int8_t) std::stoi(items[item].c_str());
-    plus ? digit++ : digit--;
+    switch (plus) {
+        case KEY_UP:
+            digit++;
+            break;
+        case KEY_DOWN:
+            digit--;
+            break;
+        case KEY_LEFT:
+            selected_item--;
+            item--;
+            break;
+        case KEY_RIGHT:
+            selected_item++;
+            item++;
+            break;
+        default:
+            break;
+    }
     if (digit > 9)
         digit = 0;
     if (digit < 0)
@@ -938,7 +995,7 @@ void Menu::highlightIndex(int8_t item) {
     display->sendBuffer();
 }
 
-void Menu::alterDigitIndex(int8_t item, bool plus) {
+void Menu::alterDigitIndex(int8_t item, int8_t plus) {
     // display->setFont(u8g2_font_spleen12x24_mn);
     // item 0,1,2,3
     // uint16_t div = 1000;
@@ -950,23 +1007,48 @@ void Menu::alterDigitIndex(int8_t item, bool plus) {
     for (int i = 0; i < 4; ++i) {
         digits[i] = std::stoi(items[i].c_str());
     }
-    if (item == 0)
-        dmax = (PREF_MAX_LINES / 1000) % 10;
-    else if (item == 1 && digits[0] == (PREF_MAX_LINES / 1000) % 10)
-        dmax = (PREF_MAX_LINES / 100) % 10;
-    else if (item == 2 && digits[0] == (PREF_MAX_LINES / 1000) % 10 && digits[1] == (PREF_MAX_LINES / 100) % 10)
-        dmax = (PREF_MAX_LINES / 10) % 10;
-    else if (item == 3 && digits[0] == (PREF_MAX_LINES / 1000) % 10 && digits[1] == (PREF_MAX_LINES / 100) % 10 &&
-             digits[2] == (PREF_MAX_LINES / 10) % 10)
-        dmax = PREF_MAX_LINES % 10;
+    // if (item == 0)
+    //     dmax = (PREF_MAX_LINES / 1000) % 10;
+    // else if (item == 1 && digits[0] == (PREF_MAX_LINES / 1000) % 10)
+    //     dmax = (PREF_MAX_LINES / 100) % 10;
+    // else if (item == 2 && digits[0] == (PREF_MAX_LINES / 1000) % 10 && digits[1] == (PREF_MAX_LINES / 100) % 10)
+    //     dmax = (PREF_MAX_LINES / 10) % 10;
+    // else if (item == 3 && digits[0] == (PREF_MAX_LINES / 1000) % 10 && digits[1] == (PREF_MAX_LINES / 100) % 10 &&
+    //          digits[2] == (PREF_MAX_LINES / 10) % 10)
+    //     dmax = PREF_MAX_LINES % 10;
 
-    plus ? digits[item]++ : digits[item]--;
-    Serial.printf("digits %d\n", digits[item]);
+    switch (plus) {
+        case KEY_UP:
+            digits[item]++;
+            break;
+        case KEY_DOWN:
+            digits[item]--;
+            break;
+        case KEY_LEFT:
+            selected_item--;
+            item--;
+            break;
+        case KEY_RIGHT:
+            selected_item++;
+            item++;
+            break;
+        default:
+            break;
+    }
+    if (selected_item < 0) {
+        selected_item = 3;
+    }
+    if (selected_item > 3) {
+        selected_item = 0;
+    }
+    item %= 4;
+    
+    Serial.printf("digits[%d] %d\n", item, digits[item]);
     if (digits[item] > dmax)
         digits[item] = 0;
     else if (digits[item] < 0)
         digits[item] = dmax;
-    Serial.printf("digits %d\n", digits[item]);
+    Serial.printf("digits[%d] %d\n", item, digits[item]);
     char buffer[2];
     sprintf(buffer, "%1d", digits[item]);
     items[item] = buffer;
